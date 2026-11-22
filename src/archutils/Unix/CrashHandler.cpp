@@ -85,7 +85,13 @@ static void spawn_child_process(int from_parent) {
   /* Use execve; it's the lowest-level of the exec calls.  The others may
    * allocate. */
   char* argv[3] = {path, magic, nullptr};
-  char* envp[1] = {nullptr};
+  // CC fork: pass CC_NO_CRASH_DIALOG through so automated tests never show
+  // the crash dialog (the child otherwise gets an empty environment).
+  char nodialog[] = "CC_NO_CRASH_DIALOG=1";
+  char* envp[2] = {nullptr, nullptr};
+  if (getenv("CC_NO_CRASH_DIALOG") != nullptr) {
+    envp[0] = nodialog;
+  }
   execve(path, argv, envp);
 
   /* If we got here, the exec failed.  We can't call strerror. */

@@ -478,6 +478,16 @@ void ScreenGameplay::CCRemoveSleepingPlayer() {
   const PlayerNumber pn = m_CCSleepingPN;
   m_CCSleepingPN = PLAYER_INVALID;
   g_CCSleepingPN = PLAYER_INVALID;
+  // This screen keeps updating during its out transition; stop treating the
+  // sleeping player as enabled, since unjoining clears its steps.
+  for (PlayerInfo& pi : m_vPlayerInfo) {
+    if (!pi.m_bIsDummy && pi.m_pn == pn) {
+      pi.m_bPlayerEnabled = false;
+      if (pi.m_pPlayer) {
+        pi.m_pPlayer->SetVisible(false);
+      }
+    }
+  }
   GAMESTATE->UnjoinPlayer(pn);
   if (m_pCCPrevStyle != nullptr) {
     GAMESTATE->SetCurrentStyle(m_pCCPrevStyle, PLAYER_INVALID);
@@ -2594,6 +2604,9 @@ void ScreenGameplay::SendCrossedMessages() {
 
     PlayerNumber pn = PLAYER_INVALID;
     FOREACH_EnabledPlayerNumberInfo(m_vPlayerInfo, pi) {
+      if (GAMESTATE->m_pCurSteps[pi->m_pn] == nullptr) {
+        continue;  // CC fork: player left during the out transition
+      }
       if (GAMESTATE->m_pCurSteps[pi->m_pn]->GetDifficulty() ==
           Difficulty_Beginner) {
         pn = pi->m_pn;

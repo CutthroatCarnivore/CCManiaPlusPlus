@@ -4,6 +4,7 @@
 #include "global.h"
 
 #include <cstddef>
+#include <cstdlib>
 #include <string>
 
 #include <CoreServices/CoreServices.h>
@@ -41,6 +42,11 @@ std::string CrashHandler::GetLogsDirectory() {
 #define LSTRING(b, x) CFBundleCopyLocalizedString((b), CFSTR(x), nullptr, CFSTR("Localizable"))
 
 void CrashHandler::InformUserOfCrash(const std::string& sPath) {
+  // CC fork: automated tests set CC_NO_CRASH_DIALOG so a crash only writes
+  // crashinfo.txt and never pops a dialog on screen.
+  if (getenv("CC_NO_CRASH_DIALOG") != nullptr) {
+    return;
+  }
   CFBundleRef bundle = CFBundleGetMainBundle();
   CFStringRef sAlternate = LSTRING(bundle, "Quit " PRODUCT_FAMILY);
   /* XXX Translate these and remove the redefine of LSTRING. Another way to do this

@@ -385,15 +385,21 @@ void NoteColumnRenderArgs::spae_zoom_for_beat(
     const PlayerState* state, float beat, RageVector3& sp_zoom,
     RageVector3& ae_zoom, int col_num, float y_offset) const {
   switch (zoom_handler->m_spline_mode) {
-    case NCSM_Disabled:
+    case NCSM_Disabled: {
       ae_zoom.x = ae_zoom.y = ae_zoom.z =
           ArrowEffects::GetZoom(state, y_offset, col_num);
+      const RageVector3 cc = ArrowEffects::CCZoomAxes(state, col_num);  // CC fork
+      ae_zoom.x *= cc.x; ae_zoom.y *= cc.y; ae_zoom.z *= cc.z;
       break;
-    case NCSM_Offset:
+    }
+    case NCSM_Offset: {
       ae_zoom.x = ae_zoom.y = ae_zoom.z =
           ArrowEffects::GetZoom(state, y_offset, col_num);
+      const RageVector3 cc = ArrowEffects::CCZoomAxes(state, col_num);  // CC fork
+      ae_zoom.x *= cc.x; ae_zoom.y *= cc.y; ae_zoom.z *= cc.z;
       zoom_handler->EvalForBeat(song_beat, beat, sp_zoom);
       break;
+    }
     case NCSM_Position:
       zoom_handler->EvalForBeat(song_beat, beat, sp_zoom);
       break;
@@ -1445,6 +1451,12 @@ void NoteDisplay::DrawActor(
       fYOffset);
   column_args.SetPRZForActor(
       pActor, sp_pos, ae_pos, sp_rot, ae_rot, sp_zoom, ae_zoom);
+  {  // CC fork: NotITG noteskew
+    const RageVector3 sk =
+        ArrowEffects::CCNoteSkew(m_pPlayerState, column_args.column);
+    pActor->SetSkewX(sk.x);
+    pActor->SetSkewY(sk.y);
+  }
   // [AJ] this two lines (and how they're handled) piss off many people:
   pActor->SetDiffuse(diffuse);
   pActor->SetGlow(glow);
@@ -1622,15 +1634,21 @@ void NoteColumnRenderer::UpdateReceptorGhostStuff(Actor* receptor) const {
       break;
   }
   switch (NCR_current.m_zoom_handler.m_spline_mode) {
-    case NCSM_Disabled:
+    case NCSM_Disabled: {
       ae_zoom.x = ae_zoom.y = ae_zoom.z =
           ArrowEffects::GetZoom(player_state, 0, m_column);
+      const RageVector3 cc = ArrowEffects::CCZoomAxes(player_state, m_column);  // CC fork
+      ae_zoom.x *= cc.x; ae_zoom.y *= cc.y; ae_zoom.z *= cc.z;
       break;
-    case NCSM_Offset:
+    }
+    case NCSM_Offset: {
       ae_zoom.x = ae_zoom.y = ae_zoom.z =
           ArrowEffects::GetZoom(player_state, 0, m_column);
+      const RageVector3 cc = ArrowEffects::CCZoomAxes(player_state, m_column);  // CC fork
+      ae_zoom.x *= cc.x; ae_zoom.y *= cc.y; ae_zoom.z *= cc.z;
       NCR_current.m_zoom_handler.EvalForReceptor(song_beat, sp_zoom);
       break;
+    }
     case NCSM_Position:
       NCR_current.m_zoom_handler.EvalForReceptor(song_beat, sp_zoom);
       break;
@@ -1641,6 +1659,46 @@ void NoteColumnRenderer::UpdateReceptorGhostStuff(Actor* receptor) const {
       receptor, sp_pos, ae_pos, sp_rot, ae_rot, sp_zoom, ae_zoom);
   receptor->SetInternalDiffuse(m_column_render_args.diffuse);
   receptor->SetInternalGlow(m_column_render_args.glow);
+}
+
+// CC fork: NotITG arrowpath -- a line along the exact path this column's
+// arrows travel (same ArrowEffects math as the notes, so mods bend it too).
+static void CCDrawArrowPath(
+    const NoteFieldRenderArgs& field, const NoteColumnRenderArgs& col_args,
+    int col) {
+  const PlayerState* ps = field.player_state;
+  const PlayerOptions& po = ps->m_PlayerOptions.GetCurrent();
+  const int c = (col >= 0 && col < CC_MAX_COLS) ? col : 0;
+#define CCV(m) (po.m_fCC[CCMOD_##m] + po.m_fCCCol[CCMOD_##m][c])
+  const float alpha = std::clamp(CCV(ARROWPATH), 0.0f, 1.0f) *
+                      col_args.diffuse.a;
+  if (alpha <= 0.001f) {
+    return;
+  }
+  const float width =
+      std::max(1.0f, 2.0f + 2.0f * (CCV(ARROWPATHGIRTH) + CCV(ARROWPATHWIDTH)));
+  const float after = field.draw_pixels_after_targets * (1.0f + CCV(ARROWPATHDRAWSIZE));
+  const float before = field.draw_pixels_before_targets * (1.0f + CCV(ARROWPATHDRAWSIZEBACK));
+#undef CCV
+  const float step = 8.0f;
+  std::vector<RageSpriteVertex> v;
+  v.reserve(static_cast<size_t>((after - before) / step) + 2);
+  for (float y = before; y <= after; y += step) {
+    RageVector3 pos;
+    ArrowEffects::GetXYZPos(ps, col, y, field.reverse_offset_pixels, pos);
+    RageSpriteVertex sv;
+    sv.p = pos;
+    sv.c = RageColor(1, 1, 1, alpha);
+    sv.t = RageVector2(0, 0);
+    v.push_back(sv);
+  }
+  if (v.size() < 2) {
+    return;
+  }
+  DISPLAY->ClearAllTextures();
+  DISPLAY->SetBlendMode(BLEND_NORMAL);
+  DISPLAY->SetZTestMode(ZTEST_OFF);
+  DISPLAY->DrawLineStrip(v.data(), static_cast<int>(v.size()), width);
 }
 
 void NoteColumnRenderer::DrawPrimitives() {
@@ -1655,6 +1713,7 @@ void NoteColumnRenderer::DrawPrimitives() {
   m_field_render_args->first_beat =
       NoteRowToBeat(m_field_render_args->first_row);
   m_field_render_args->last_beat = NoteRowToBeat(m_field_render_args->last_row);
+  CCDrawArrowPath(*m_field_render_args, m_column_render_args, m_column);  // CC fork
   bool any_upcoming = false;
   // Build lists of holds and taps for each player number, then pass those
   // lists to the displays to draw.

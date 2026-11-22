@@ -133,6 +133,10 @@ class ArrowEffects {
   static float GetZoom(
       const PlayerState* pPlayerState, float fYOffset, int iCol);
   static float GetZoomVariable(float fYOffset, int iCol, float fCurZoom);
+  // CC fork: NotITG tinyx/tinyy/tinyz per-axis zoom multipliers.
+  static RageVector3 CCZoomAxes(const PlayerState* pPlayerState, int iCol);
+  // CC fork: NotITG noteskew/noteskewx/noteskewy (x = horizontal, y = vertical).
+  static RageVector3 CCNoteSkew(const PlayerState* pPlayerState, int iCol);
   static float GetPulseInner();
 
   static float GetFrameWidthScale(

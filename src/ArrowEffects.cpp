@@ -1591,6 +1591,38 @@ float ArrowEffects::GetZoom(
   return fZoom;
 }
 
+RageVector3 ArrowEffects::CCZoomAxes(
+    const PlayerState* pPlayerState, int iCol) {
+  const PlayerOptions& po = pPlayerState->m_PlayerOptions.GetCurrent();
+  RageVector3 r(1, 1, 1);
+  const int c = (iCol >= 0 && iCol < CC_MAX_COLS) ? iCol : 0;
+  float t;
+  t = po.m_fCC[CCMOD_TINYX] + po.m_fCCCol[CCMOD_TINYX][c];
+  if (t != 0) r.x = std::pow(0.5f, t);
+  t = po.m_fCC[CCMOD_TINYY] + po.m_fCCCol[CCMOD_TINYY][c];
+  if (t != 0) r.y = std::pow(0.5f, t);
+  t = po.m_fCC[CCMOD_TINYZ] + po.m_fCCCol[CCMOD_TINYZ][c];
+  if (t != 0) r.z = std::pow(0.5f, t);
+  // NotITG zoom/zoomx/zoomy/zoomz: plain multipliers, 100% = normal.
+  // Global and per-column values multiply.
+  const float z = po.m_fCC[CCMOD_ZOOM] * po.m_fCCCol[CCMOD_ZOOM][c];
+  r.x *= z * po.m_fCC[CCMOD_ZOOMX] * po.m_fCCCol[CCMOD_ZOOMX][c];
+  r.y *= z * po.m_fCC[CCMOD_ZOOMY] * po.m_fCCCol[CCMOD_ZOOMY][c];
+  r.z *= z * po.m_fCC[CCMOD_ZOOMZ] * po.m_fCCCol[CCMOD_ZOOMZ][c];
+  return r;
+}
+
+RageVector3 ArrowEffects::CCNoteSkew(
+    const PlayerState* pPlayerState, int iCol) {
+  const PlayerOptions& po = pPlayerState->m_PlayerOptions.GetCurrent();
+  const int c = (iCol >= 0 && iCol < CC_MAX_COLS) ? iCol : 0;
+  RageVector3 r(0, 0, 0);
+  r.x = po.m_fCC[CCMOD_NOTESKEW] + po.m_fCCCol[CCMOD_NOTESKEW][c] +
+        po.m_fCC[CCMOD_NOTESKEWX] + po.m_fCCCol[CCMOD_NOTESKEWX][c];
+  r.y = po.m_fCC[CCMOD_NOTESKEWY] + po.m_fCCCol[CCMOD_NOTESKEWY][c];
+  return r;
+}
+
 float ArrowEffects::GetZoomVariable(float fYOffset, int iCol, float fCurZoom) {
   float fZoom = fCurZoom;
   if (curr_options->m_fEffects[PlayerOptions::EFFECT_PULSE_INNER] != 0 ||

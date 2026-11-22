@@ -29,6 +29,12 @@ bool SaveToFile(
 
 void AnnotateXNodeTree(XNode* pNode, const std::string& sFile);
 void CompileXNodeTree(XNode* pNode, const std::string& sFile);
+// CC fork (OpenITG/NotITG legacy XML semantics): compile only this node's
+// own attributes, lazily, right before the node is loaded.
+void CompileXNodeAttrs(XNode* pNode, const std::string& sFile);
+// Evaluates a legacy Condition attribute as a Lua expression.
+// Returns false if there is no Condition.
+bool EvalLegacyCondition(XNode* pNode, const std::string& sFile, bool& bOut);
 XNode* XNodeFromTable(lua_State* L);
 
 void MergeIniUnder(XNode* pFrom, XNode* pTo);

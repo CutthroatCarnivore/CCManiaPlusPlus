@@ -899,3 +899,42 @@ void XmlFileUtil::MergeIniUnder(XNode* pFrom, XNode* pTo) {
  * OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
+
+// CC fork ------------------------------------------------------------------
+void XmlFileUtil::CompileXNodeAttrs(XNode* pNode, const std::string& sFile) {
+  Lua* L = LUA->Get();
+  FOREACH_Attr(pNode, pAttr) {
+    // Annotation attributes (_Source, _Dir, _LegacyXml) keep their types;
+    // Condition was already evaluated by EvalLegacyCondition.
+    if (pAttr->first.empty() || pAttr->first[0] == '_' ||
+        pAttr->first == "Condition") {
+      continue;
+    }
+    XNodeValue* pValue =
+        CompileXMLNodeValue(L, pAttr->first, pAttr->second, sFile);
+    delete pAttr->second;
+    pAttr->second = pValue;
+  }
+  LUA->Release(L);
+}
+
+bool XmlFileUtil::EvalLegacyCondition(
+    XNode* pNode, const std::string& sFile, bool& bOut) {
+  const XNodeValue* pCond = pNode->GetAttr("Condition");
+  if (pCond == nullptr) {
+    return false;
+  }
+  std::string sExpr;
+  pCond->GetValue(sExpr);
+  if (!sExpr.empty() && (sExpr[0] == '@' || sExpr[0] == '%')) {
+    sExpr.erase(0, 1);
+  }
+  Lua* L = LUA->Get();
+  bOut = true;
+  if (LuaHelpers::RunExpression(L, sExpr, sFile)) {
+    bOut = lua_toboolean(L, -1) != 0;
+  }
+  lua_settop(L, 0);
+  LUA->Release(L);
+  return true;
+}

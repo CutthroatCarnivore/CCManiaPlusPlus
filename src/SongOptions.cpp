@@ -32,7 +32,11 @@ LuaXType(SoundEffectType);
 
 void SongOptions::Approach(const SongOptions& other, float fDeltaSeconds) {
 #define APPROACH(opt) \
-  fapproach(m_##opt, other.m_##opt, fDeltaSeconds* other.m_Speed##opt);
+  if (other.m_Speed##opt <= 0) { /* CC fork: instant */ \
+    m_##opt = other.m_##opt;                              \
+  } else {                                                \
+    fapproach(m_##opt, other.m_##opt, fDeltaSeconds* other.m_Speed##opt); \
+  }
 #define DO_COPY(x) x = other.x;
 
   APPROACH(fMusicRate);

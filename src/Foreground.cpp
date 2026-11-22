@@ -14,10 +14,13 @@
 #include "RageTextureManager.h"
 #include "RageUtil.h"
 #include "Song.h"
+#include "PlayerOptions.h"
+#include "LuaManager.h"
 
 Foreground::~Foreground() { Unload(); }
 
 void Foreground::Unload() {
+  g_bCCNotITGColumns = false;  // CC fork: back to ITGmania column numbering
   for (unsigned i = 0; i < m_BGAnimations.size(); ++i) {
     delete m_BGAnimations[i].m_bga;
   }
@@ -33,17 +36,25 @@ void Foreground::LoadFromSong(const Song* pSong) {
   TEXTUREMAN->SetDefaultTexturePolicy(RageTextureID::TEX_VOLATILE);
 
   m_pSong = pSong;
+  g_bCCNotITGColumns = false;  // CC fork: set below if this is a NotITG modfile
   for (const BackgroundChange& change : pSong->GetForegroundChanges()) {
     std::string sBGName = change.m_def.m_sFile1,
                 sLuaFile = pSong->GetSongDir() + sBGName + "/default.lua",
                 sXmlFile = pSong->GetSongDir() + sBGName + "/default.xml";
 
     LoadedBGA bga;
-    if (DoesFileExist(sLuaFile)) {
-      bga.m_bga = ActorUtil::MakeActor(sLuaFile, this);
-    } else if (CC_LEGACY_ACTORS && DoesFileExist(sXmlFile)) {
+    // CC fork: when a song ships both, prefer the NotITG default.xml over a
+    // default.lua port written for another engine (NotITG parity first).
+    if (CC_LEGACY_ACTORS && DoesFileExist(sXmlFile)) {
+      g_bCCNotITGColumns = true;
       bga.m_bga = ActorUtil::MakeActor(sXmlFile, this);
+    } else if (DoesFileExist(sLuaFile)) {
+      bga.m_bga = ActorUtil::MakeActor(sLuaFile, this);
     } else {
+      if (EndsWith(sBGName, ".xml") ||
+          DoesFileExist(pSong->GetSongDir() + sBGName + "/default.xml")) {
+        g_bCCNotITGColumns = true;
+      }
       bga.m_bga = ActorUtil::MakeActor(pSong->GetSongDir() + sBGName, this);
     }
     if (bga.m_bga == nullptr) {
@@ -155,3 +166,6 @@ void Foreground::HandleMessage(const Message& msg) {
  * OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
+
+// CC fork: lets Lua (theme/compat layer) ask whether a NotITG modfile is loaded.
+LuaFunction(CCIsNotITGSong, g_bCCNotITGColumns);

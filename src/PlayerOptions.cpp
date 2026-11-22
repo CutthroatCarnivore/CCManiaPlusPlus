@@ -1,5 +1,22 @@
 #include "PlayerOptions.h"
 
+bool g_bCCNotITGColumns = false;
+
+const char* const g_szCCModNames[NUM_CCMODS] = {
+#define CCX(e, n) n,
+    CC_NOTITG_MODS(CCX)
+#undef CCX
+};
+
+int CCModFromName(const std::string& sName) {
+  for (int i = 0; i < NUM_CCMODS; ++i) {
+    if (sName == g_szCCModNames[i]) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 #include <algorithm>
 #include <cctype>
 #include <cfloat>
@@ -172,6 +189,15 @@ void PlayerOptions::Init() {
   ONE(m_SpeedfBumpy);
   ZERO(m_fReverse);
   ONE(m_SpeedfReverse);
+  // CC fork: NotITG mods
+  for (int i = 0; i < NUM_CCMODS; ++i) {
+    m_fCC[i] = CCModNeutral(i);
+    m_SpeedfCC[i] = 1.0f;
+    for (int c = 0; c < CC_MAX_COLS; ++c) {
+      m_fCCCol[i][c] = CCModNeutral(i);
+      m_SpeedfCCCol[i][c] = 1.0f;
+    }
+  }
 }
 
 void PlayerOptions::Approach(const PlayerOptions& other, float fDeltaSeconds) {
@@ -180,9 +206,16 @@ void PlayerOptions::Approach(const PlayerOptions& other, float fDeltaSeconds) {
           ? GAMESTATE->m_SongOptions.GetCurrent().m_fMusicRate
           : 1.0f;
 
-#define APPROACH(opt) \
-  fapproach(          \
-      m_##opt, other.m_##opt, fRateMult * fDeltaSeconds * other.m_Speed##opt);
+// CC fork: NotITG treats a non-positive approach speed ("*-1 100 drunk") as
+// "set instantly"; stock ITGmania asserted (to_move < 0) and crashed.
+#define APPROACH(opt)                                                    \
+  if (other.m_Speed##opt <= 0) {                                         \
+    m_##opt = other.m_##opt;                                             \
+  } else {                                                               \
+    fapproach(                                                           \
+        m_##opt, other.m_##opt,                                          \
+        fRateMult * fDeltaSeconds * other.m_Speed##opt);                 \
+  }
 #define DO_COPY(x) x = other.x;
 
   DO_COPY(m_LifeType);
@@ -197,14 +230,25 @@ void PlayerOptions::Approach(const PlayerOptions& other, float fDeltaSeconds) {
   APPROACH(fTimeSpacing);
   APPROACH(fScrollSpeed);
   APPROACH(fMaxScrollBPM);
-  fapproach(
-      m_fScrollBPM, other.m_fScrollBPM,
-      fDeltaSeconds * other.m_SpeedfScrollBPM * 150);
+  if (other.m_SpeedfScrollBPM <= 0) {  // CC fork
+    m_fScrollBPM = other.m_fScrollBPM;
+  } else {
+    fapproach(
+        m_fScrollBPM, other.m_fScrollBPM,
+        fDeltaSeconds * other.m_SpeedfScrollBPM * 150);
+  }
   for (int i = 0; i < NUM_ACCELS; i++) {
     APPROACH(fAccels[i]);
   }
   for (int i = 0; i < NUM_EFFECTS; i++) {
     APPROACH(fEffects[i]);
+  }
+  // CC fork: NotITG mods
+  for (int i = 0; i < NUM_CCMODS; i++) {
+    APPROACH(fCC[i]);
+    for (int c = 0; c < CC_MAX_COLS; c++) {
+      APPROACH(fCCCol[i][c]);
+    }
   }
   for (int i = 0; i < NUM_APPEARANCES; i++) {
     APPROACH(fAppearances[i]);
@@ -519,29 +563,43 @@ void PlayerOptions::GetMods(
   AddPart(AddTo, m_bCosecant, "Cosecant");
 
   for (int i = 0; i < 16; i++) {
-    std::string s = ssprintf("MoveX%d", i + 1);
+    std::string s = ssprintf("MoveX%d", i + CCColBase());
 
     AddPart(AddTo, m_fMovesX[i], s);
-    s = ssprintf("MoveY%d", i + 1);
+    s = ssprintf("MoveY%d", i + CCColBase());
     AddPart(AddTo, m_fMovesY[i], s);
-    s = ssprintf("MoveZ%d", i + 1);
+    s = ssprintf("MoveZ%d", i + CCColBase());
     AddPart(AddTo, m_fMovesZ[i], s);
-    s = ssprintf("ConfusionOffset%d", i + 1);
+    s = ssprintf("ConfusionOffset%d", i + CCColBase());
     AddPart(AddTo, m_fConfusionX[i], s);
-    s = ssprintf("ConfusionYOffset%d", i + 1);
+    s = ssprintf("ConfusionYOffset%d", i + CCColBase());
     AddPart(AddTo, m_fConfusionY[i], s);
-    s = ssprintf("ConfusionZOffset%d", i + 1);
+    s = ssprintf("ConfusionZOffset%d", i + CCColBase());
     AddPart(AddTo, m_fConfusionZ[i], s);
-    s = ssprintf("Dark%d", i + 1);
+    s = ssprintf("Dark%d", i + CCColBase());
     AddPart(AddTo, m_fDarks[i], s);
-    s = ssprintf("Stealth%d", i + 1);
+    s = ssprintf("Stealth%d", i + CCColBase());
     AddPart(AddTo, m_fStealth[i], s);
-    s = ssprintf("Tiny%d", i + 1);
+    s = ssprintf("Tiny%d", i + CCColBase());
     AddPart(AddTo, m_fTiny[i], s);
-    s = ssprintf("Bumpy%d", i + 1);
+    s = ssprintf("Bumpy%d", i + CCColBase());
     AddPart(AddTo, m_fBumpy[i], s);
-    s = ssprintf("Reverse%d", i + 1);
+    s = ssprintf("Reverse%d", i + CCColBase());
     AddPart(AddTo, m_fReverse[i], s);
+  }
+  // CC fork: NotITG mods
+  for (int m = 0; m < NUM_CCMODS; ++m) {
+    const float n = CCModNeutral(m);
+    if (m_fCC[m] != n) {
+      AddTo.push_back(ssprintf("%ld%% %s", std::lrint(m_fCC[m] * 100),
+                               g_szCCModNames[m]));
+    }
+    for (int col = 0; col < CC_MAX_COLS; ++col) {
+      if (m_fCCCol[m][col] != n) {
+        AddTo.push_back(ssprintf("%ld%% %s%d", std::lrint(m_fCCCol[m][col] * 100),
+                                 g_szCCModNames[m], col + CCColBase()));
+      }
+    }
   }
 
   AddPart(AddTo, m_fAppearances[APPEARANCE_HIDDEN], "Hidden");
@@ -824,6 +882,28 @@ bool PlayerOptions::FromOneModString(
   }
   const bool on = (level > 0.5f);
 
+  // CC fork: NotITG mods, global ("tinyx") or per column ("tinyx0")
+  {
+    int cc = CCModFromName(sBit);
+    if (cc >= 0) {
+      m_fCC[cc] = level;
+      m_SpeedfCC[cc] = speed;
+      return true;
+    }
+    size_t d = sBit.find_last_not_of("0123456789");
+    if (d != std::string::npos && d + 1 < sBit.size()) {
+      cc = CCModFromName(sBit.substr(0, d + 1));
+      if (cc >= 0) {
+        int col = StringToInt(sBit.substr(d + 1)) - CCColBase();
+        if (col >= 0 && col < CC_MAX_COLS) {
+          m_fCCCol[cc][col] = level;
+          m_SpeedfCCCol[cc][col] = speed;
+          return true;
+        }
+      }
+    }
+  }
+
   static Regex mult("^([0-9]+(\\.[0-9]+)?)x$");
   static Regex disabledWindows("(w[1-5])");
   std::vector<std::string> matches;
@@ -1000,7 +1080,7 @@ bool PlayerOptions::FromOneModString(
         SET_FLOAT(fEffects[EFFECT_CONFUSION_X_OFFSET])
       } else {
         for (int i = 0; i < 16; i++) {
-          sMod = ssprintf("confusionxoffset%d", i + 1);
+          sMod = ssprintf("confusionxoffset%d", i + CCColBase());
           if (sBit == sMod) {
             SET_FLOAT(fConfusionX[i])
             break;
@@ -1014,7 +1094,7 @@ bool PlayerOptions::FromOneModString(
         SET_FLOAT(fEffects[EFFECT_CONFUSION_Y_OFFSET])
       } else {
         for (int i = 0; i < 16; i++) {
-          sMod = ssprintf("confusionyoffset%d", i + 1);
+          sMod = ssprintf("confusionyoffset%d", i + CCColBase());
           if (sBit == sMod) {
             SET_FLOAT(fConfusionY[i])
             break;
@@ -1028,7 +1108,7 @@ bool PlayerOptions::FromOneModString(
       SET_FLOAT(fEffects[EFFECT_CONFUSION_OFFSET])
     } else {
       for (int i = 0; i < 16; i++) {
-        sMod = ssprintf("confusionoffset%d", i + 1);
+        sMod = ssprintf("confusionoffset%d", i + CCColBase());
         if (sBit == sMod) {
           SET_FLOAT(fConfusionZ[i])
           break;
@@ -1056,7 +1136,7 @@ bool PlayerOptions::FromOneModString(
       SET_FLOAT(fEffects[EFFECT_TINY])
     } else {
       for (int i = 0; i < 16; i++) {
-        sMod = ssprintf("tiny%d", i + 1);
+        sMod = ssprintf("tiny%d", i + CCColBase());
         if (sBit == sMod) {
           SET_FLOAT(fTiny[i])
           break;
@@ -1134,7 +1214,7 @@ bool PlayerOptions::FromOneModString(
       SET_FLOAT(fEffects[EFFECT_TAN_BUMPY_X_PERIOD])
     } else {
       for (int i = 0; i < 16; i++) {
-        sMod = ssprintf("bumpy%d", i + 1);
+        sMod = ssprintf("bumpy%d", i + CCColBase());
         if (sBit == sMod) {
           SET_FLOAT(fBumpy[i])
           break;
@@ -1278,7 +1358,7 @@ bool PlayerOptions::FromOneModString(
       m_bStealthPastReceptors = on;
     } else {
       for (int i = 0; i < 16; i++) {
-        sMod = ssprintf("stealth%d", i + 1);
+        sMod = ssprintf("stealth%d", i + CCColBase());
         if (sBit == sMod) {
           SET_FLOAT(fStealth[i])
           break;
@@ -1350,7 +1430,7 @@ bool PlayerOptions::FromOneModString(
       SET_FLOAT(fScrolls[SCROLL_REVERSE])
     } else {
       for (int i = 0; i < 16; i++) {
-        sMod = ssprintf("reverse%d", i + 1);
+        sMod = ssprintf("reverse%d", i + CCColBase());
         if (sBit == sMod) {
           SET_FLOAT(fReverse[i])
           break;
@@ -1382,7 +1462,7 @@ bool PlayerOptions::FromOneModString(
       SET_FLOAT(fDark)
     } else {
       for (int i = 0; i < 16; i++) {
-        sMod = ssprintf("dark%d", i + 1);
+        sMod = ssprintf("dark%d", i + CCColBase());
         if (sBit == sMod) {
           SET_FLOAT(fDarks[i])
           break;
@@ -1453,7 +1533,7 @@ bool PlayerOptions::FromOneModString(
   else if (sBit.find("move") != sBit.npos) {
     if (sBit.find("x") != sBit.npos) {
       for (int i = 0; i < 16; i++) {
-        sMod = ssprintf("movex%d", i + 1);
+        sMod = ssprintf("movex%d", i + CCColBase());
         if (sBit == sMod) {
           SET_FLOAT(fMovesX[i])
           break;
@@ -1461,7 +1541,7 @@ bool PlayerOptions::FromOneModString(
       }
     } else if (sBit.find("y") != sBit.npos) {
       for (int i = 0; i < 16; i++) {
-        sMod = ssprintf("movey%d", i + 1);
+        sMod = ssprintf("movey%d", i + CCColBase());
         if (sBit == sMod) {
           SET_FLOAT(fMovesY[i])
           break;
@@ -1469,7 +1549,7 @@ bool PlayerOptions::FromOneModString(
       }
     } else if (sBit.find("z") != sBit.npos) {
       for (int i = 0; i < 16; i++) {
-        sMod = ssprintf("movez%d", i + 1);
+        sMod = ssprintf("movez%d", i + CCColBase());
         if (sBit == sMod) {
           SET_FLOAT(fMovesZ[i])
           break;
@@ -1798,6 +1878,12 @@ bool PlayerOptions::operator==(const PlayerOptions& other) const {
   }
   for (int i = 0; i < 16; ++i) {
     COMPARE(m_fTiny[i]);
+  }
+  for (int m = 0; m < NUM_CCMODS; ++m) {
+    COMPARE(m_fCC[m]);
+    for (int col = 0; col < CC_MAX_COLS; ++col) {
+      COMPARE(m_fCCCol[m][col]);
+    }
   }
   for (int i = 0; i < 16; ++i) {
     COMPARE(m_fBumpy[i]);

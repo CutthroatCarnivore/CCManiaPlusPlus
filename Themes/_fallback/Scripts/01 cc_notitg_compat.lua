@@ -5,6 +5,9 @@
 FUCK_EXE = true            -- NotITG's "running in NotITG" flag
 CC_NOTITG_COMPAT = 1
 
+-- Lua 5.2-style ports do `local _ENV = _ENV`; in 5.1 make that mean globals.
+if _ENV == nil then _ENV = _G end
+
 -- Lua 5.0 leftovers not covered by ITGmania's Lua 5.1 compat flags
 if not table.getn then table.getn = function(t) return #t end end
 if not table.setn then table.setn = function() end end
@@ -63,19 +66,18 @@ end
 
 -- Real mappings -----------------------------------------------------------
 if GameState then
-	-- NotITG: GAMESTATE:ApplyModifiers("*1 50 drunk", pn)  (pn optional)
-	GameState.ApplyModifiers = function(self, mods, pn)
-		if not mods or mods == "" then return end
-		if pn == nil then
-			for _, p in ipairs(GAMESTATE:GetEnabledPlayers()) do
-				self:ApplyGameCommand("mod," .. mods, p)
-			end
-		else
-			if type(pn) == "number" then pn = PlayerNumber[pn + 1] end
-			self:ApplyGameCommand("mod," .. mods, pn)
-		end
-	end
+	-- ApplyModifiers is implemented in C++ (GameState.cpp, CC fork).
 	GameState.GetVersionDate = function() return "20241010" end
+	-- NotITG: file/folder names inside a directory, returned as MULTIPLE values
+	GameState.GetFileStructure = function(self, path)
+		if not path then return end
+		if path:sub(-1) ~= "/" then path = path .. "/" end
+		local out = {}
+		for _, f in ipairs(FILEMAN:GetDirListing(path .. "*", false, false) or {}) do
+			out[#out + 1] = f
+		end
+		return unpack(out)
+	end
 	GameState.GetVersion = function() return "v4.9.1" end
 end
 
@@ -136,5 +138,36 @@ if Actor then
 	Actor.stopeffect = function(self, ...)
 		CCKillFrameHooks(self)
 		return orig_stopeffect(self, ...)
+	end
+end
+
+-- NotITG: SCREENMAN('PlayerP1') == SCREENMAN:GetTopScreen():GetChild('PlayerP1')
+-- SCREENMAN doesn't exist yet while theme scripts load, so ScreenSystemLayer
+-- aux.lua calls this once the screen system is up.
+function CCMakeScreenmanCallable()
+	if CCScreenmanCallable then return end
+	local gm = (debug and debug.getmetatable) or getmetatable
+	local mt = SCREENMAN and gm(SCREENMAN)
+	if type(mt) ~= "table" then
+		Trace("CC-NOTITG: couldn't make SCREENMAN callable (" .. type(mt) .. ")")
+		return
+	end
+	if mt.__call == nil then
+		mt.__call = function(self, name)
+			local top = self:GetTopScreen()
+			if not top or not name then return nil end
+			return top:GetChild(name)
+		end
+	end
+	CCScreenmanCallable = true
+end
+
+-- Diagnostics for the test harness: count ApplyModifiers calls.
+if GameState and GameState.ApplyModifiers then
+	local cpp_apply = GameState.ApplyModifiers
+	GameState.ApplyModifiers = function(self, s, pn)
+		CCApplyCount = (CCApplyCount or 0) + 1
+		CCLastApply = tostring(s) .. " @" .. tostring(pn)
+		return cpp_apply(self, s, pn)
 	end
 end

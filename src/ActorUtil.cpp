@@ -169,6 +169,12 @@ std::string GetLegacyActorClass(XNode* pActor) {
     }
   }
 
+  // CC fork: OpenITG/NotITG treat unknown tags (Layer, Code, Template, Mods...)
+  // without a File as plain containers / code holders.
+  if (!IsRegistered(pActor->m_sName) &&
+      pActor->GetAttr("File") == nullptr) {
+    return pActor->ChildrenEmpty() ? "Actor" : "ActorFrame";
+  }
   // Fallback: use XML tag name for actor class
   return pActor->m_sName;
 }
@@ -182,7 +188,20 @@ Actor* ActorUtil::LoadFromNode(const XNode* _pNode, Actor* pParentActor) {
   // Remove this in favor of using conditionals in Lua. -Chris
   // There are a number of themes out there that depend on this (including
   // sm-ssc default). Probably for the best to leave this in. -aj
-  {
+  // CC fork: legacy (OpenITG/NotITG) XML -- evaluate Condition as Lua first,
+  // then compile this node's other attributes, in document order.
+  if (node.GetAttr("_LegacyXml") != nullptr &&
+      node.GetAttr("_CCCompiled") == nullptr) {
+    std::string sSource;
+    node.GetAttrValue("_Source", sSource);
+    bool bCond = true;
+    if (XmlFileUtil::EvalLegacyCondition(&node, sSource, bCond) && !bCond) {
+      return nullptr;
+    }
+    node.RemoveAttr("Condition");
+    XmlFileUtil::CompileXNodeAttrs(&node, sSource);
+    node.AppendAttr("_CCCompiled", true);
+  } else {
     bool bCond;
     if (node.GetAttrValue("Condition", bCond) && !bCond) {
       return nullptr;
@@ -324,13 +343,26 @@ Actor* ActorUtil::MakeActor(const std::string& sPath_, Actor* pParentActor) {
         return new Actor;
       }
 
+      // CC fork: guard against runaway self-including XML (a NotITG
+      // template whose Condition never turns false must not crash us).
+      static int s_iCCXmlDepth = 0;
+      if (s_iCCXmlDepth >= 48) {
+        LuaHelpers::ReportScriptErrorFmt(
+            "%s: XML include depth limit reached; skipping.", sPath.c_str());
+        return new Actor;
+      }
       XNode xml;
       if (!XmlFileUtil::LoadFromFileShowErrors(xml, sPath)) {
         return new Actor;
       }
-      XmlFileUtil::CompileXNodeTree(&xml, sPath);
+      // CC fork: no up-front CompileXNodeTree. Like OpenITG/NotITG, each
+      // node's attributes are evaluated in document order as it loads
+      // (see ActorUtil::LoadFromNode).
       XmlFileUtil::AnnotateXNodeTree(&xml, sPath);
-      return LoadFromNode(&xml, pParentActor);
+      ++s_iCCXmlDepth;
+      Actor* pRet = LoadFromNode(&xml, pParentActor);
+      --s_iCCXmlDepth;
+      return pRet;
     }
     case FT_Directory: {
       if (Right(sPath, 1) != "/") {

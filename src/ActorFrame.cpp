@@ -622,6 +622,16 @@ class LunaActorFrame : public Luna<ActorFrame> {
     p->PushChildrenTable(L);
     return 1;
   }
+  // CC fork: NotITG ActorFrame:GetChildAt(i), 0-indexed in draw order.
+  static int GetChildAt(T* p, lua_State* L) {
+    const int i = IArg(1);
+    if (i < 0 || i >= p->GetNumChildren()) {
+      lua_pushnil(L);
+      return 1;
+    }
+    p->GetChildren()[i]->PushSelf(L);
+    return 1;
+  }
   static int GetNumChildren(T* p, lua_State* L) {
     lua_pushnumber(L, p->GetNumChildren());
     return 1;
@@ -746,6 +756,7 @@ class LunaActorFrame : public Luna<ActorFrame> {
     ADD_METHOD(GetChild);
     ADD_METHOD(GetChildren);
     ADD_METHOD(GetNumChildren);
+    ADD_METHOD(GetChildAt);  // CC fork
     ADD_METHOD(SetDrawByZPosition);
     ADD_METHOD(SetDrawFunction);
     ADD_METHOD(GetDrawFunction);

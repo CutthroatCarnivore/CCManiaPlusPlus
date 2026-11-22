@@ -69,6 +69,13 @@ const std::string& ModTimerTypeToLocalizedString(ModTimerType cat);
 LuaDeclareType(ModTimerType);
 
 /** @brief Per-player options that are not saved between sessions. */
+#include "CCNotITGMods.h"
+
+// CC fork: true while a NotITG modfile song is loaded. NotITG numbers
+// per-column mods from 0 (tiny0 = left), ITGmania from 1 (tiny1 = left).
+extern bool g_bCCNotITGColumns;
+inline int CCColBase() { return g_bCCNotITGColumns ? 0 : 1; }
+
 class PlayerOptions {
  public:
   /**
@@ -454,6 +461,9 @@ class PlayerOptions {
   float m_fDarks[16], m_SpeedfDarks[16];
   float m_fStealth[16], m_SpeedfStealth[16];
   float m_fTiny[16], m_SpeedfTiny[16];
+  // CC fork: NotITG mods (CCNotITGMods.h), global and per column
+  float m_fCC[NUM_CCMODS], m_SpeedfCC[NUM_CCMODS];
+  float m_fCCCol[NUM_CCMODS][CC_MAX_COLS], m_SpeedfCCCol[NUM_CCMODS][CC_MAX_COLS];
   float m_fBumpy[16], m_SpeedfBumpy[16];
   float m_fReverse[16], m_SpeedfReverse[16];
 

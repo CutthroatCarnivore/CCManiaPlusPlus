@@ -1,4 +1,5 @@
 #include "NotesLoaderSM.h"
+#include "ActorUtil.h"  // CC fork: CC_LEGACY_ACTORS
 
 #include <algorithm>
 #include <cstddef>
@@ -935,7 +936,7 @@ bool SMLoader::LoadFromBGChangesVector(
       MakeLower(tmp);
       if ((tmp.find(".ini") != std::string::npos ||
            tmp.find(".xml") != std::string::npos) &&
-          !PREFSMAN->m_bQuirksMode) {
+          !CC_LEGACY_ACTORS) {  // CC fork: NotITG modfiles point FGCHANGES at .xml
         return false;
       }
       change.m_def.m_sFile2 = aBGChangeValues[7];
@@ -980,7 +981,7 @@ bool SMLoader::LoadFromBGChangesVector(
       MakeLower(tmp);
       if ((tmp.find(".ini") != std::string::npos ||
            tmp.find(".xml") != std::string::npos) &&
-          !PREFSMAN->m_bQuirksMode) {
+          !CC_LEGACY_ACTORS) {  // CC fork: NotITG modfiles point FGCHANGES at .xml
         return false;
       }
       change.m_def.m_sFile1 = aBGChangeValues[1];

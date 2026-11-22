@@ -2925,6 +2925,29 @@ class LunaGameState : public Luna<GameState> {
         ModsLevel_Preferred, p->m_SongOptions.Get(ModsLevel_Preferred));
     return 0;
   }
+  // CC fork: NotITG GAMESTATE:ApplyModifiers(str[, pn]). Writes the Song
+  // level only, so Current eases toward it at each mod's "*speed" (NotITG
+  // semantics) and nothing leaks into the player's preferred mods.
+  // pn may be NotITG's 1-based number, a PlayerNumber enum, or omitted (all).
+  static int ApplyModifiers(T* p, lua_State* L) {
+    const std::string s = SArg(1);
+    if (lua_isnoneornil(L, 2)) {
+      FOREACH_EnabledPlayer(pn) {
+        p->m_pPlayerState[pn]->m_PlayerOptions.FromString(ModsLevel_Song, s);
+      }
+    } else {
+      PlayerNumber pn = PLAYER_INVALID;
+      if (lua_type(L, 2) == LUA_TNUMBER) {
+        pn = static_cast<PlayerNumber>(IArg(2) - 1);
+      } else {
+        pn = Enum::Check<PlayerNumber>(L, 2);
+      }
+      if (pn >= 0 && pn < NUM_PLAYERS) {
+        p->m_pPlayerState[pn]->m_PlayerOptions.FromString(ModsLevel_Song, s);
+      }
+    }
+    COMMON_RETURN_SELF;
+  }
   static int ApplyStageModifiers(T* p, lua_State* L) {
     p->ApplyStageModifiers(Enum::Check<PlayerNumber>(L, 1), SArg(2));
     COMMON_RETURN_SELF;
@@ -3426,6 +3449,7 @@ class LunaGameState : public Luna<GameState> {
     ADD_METHOD(ApplyPreferredSongOptionsToOtherLevels);
     ADD_METHOD(ApplyPreferredModifiers);
     ADD_METHOD(ApplyStageModifiers);
+    ADD_METHOD(ApplyModifiers);  // CC fork
     ADD_METHOD(ClearStageModifiersIllegalForCourse);
     ADD_METHOD(SetSongOptions);
     ADD_METHOD(GetStageResult);

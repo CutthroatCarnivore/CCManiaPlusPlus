@@ -41,7 +41,7 @@ void Foreground::LoadFromSong(const Song* pSong) {
     LoadedBGA bga;
     if (DoesFileExist(sLuaFile)) {
       bga.m_bga = ActorUtil::MakeActor(sLuaFile, this);
-    } else if (PREFSMAN->m_bQuirksMode && DoesFileExist(sXmlFile)) {
+    } else if (CC_LEGACY_ACTORS && DoesFileExist(sXmlFile)) {
       bga.m_bga = ActorUtil::MakeActor(sXmlFile, this);
     } else {
       bga.m_bga = ActorUtil::MakeActor(pSong->GetSongDir() + sBGName, this);

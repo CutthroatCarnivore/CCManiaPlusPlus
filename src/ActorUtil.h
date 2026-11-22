@@ -1,6 +1,11 @@
 #ifndef ActorUtil_H
 #define ActorUtil_H
 
+// CC fork: NotITG/OpenITG modfiles are built from legacy XML/.sprite actors.
+// Always load them (stock ITGmania only does this in QuirksMode).
+#define CC_LEGACY_ACTORS true
+
+
 #include <string>
 #include <vector>
 

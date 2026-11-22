@@ -123,7 +123,7 @@ bool ActorUtil::ResolvePath(
 
 namespace {
 std::string GetLegacyActorClass(XNode* pActor) {
-  DEBUG_ASSERT(PREFSMAN->m_bQuirksMode);
+  DEBUG_ASSERT(CC_LEGACY_ACTORS);
   ASSERT(pActor);
 
   // The non-legacy LoadFromNode has already checked the Class and
@@ -320,7 +320,7 @@ Actor* ActorUtil::MakeActor(const std::string& sPath_, Actor* pParentActor) {
     }
     case FT_Xml: {
       // Legacy actors; only supported in quirks mode
-      if (!PREFSMAN->m_bQuirksMode) {
+      if (!CC_LEGACY_ACTORS) {
         return new Actor;
       }
 
@@ -358,7 +358,7 @@ Actor* ActorUtil::MakeActor(const std::string& sPath_, Actor* pParentActor) {
     }
     case FT_Sprite: {
       // Legacy actor; only supported in quirks mode
-      if (!PREFSMAN->m_bQuirksMode) {
+      if (!CC_LEGACY_ACTORS) {
         return new Actor;
       }
 

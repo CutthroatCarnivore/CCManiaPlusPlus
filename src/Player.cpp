@@ -3754,6 +3754,34 @@ class LunaPlayer : public Luna<Player> {
     return 1;
   }
   GET_SET_BOOL_METHOD(oitg_zoom_mode, m_oitg_zoom_mode);
+  // CC fork: NotITG Player:GetNoteData(). Table of notes sorted by beat, each
+  // {beat, column (0-based), holdLengthInBeats (0 for taps), type string}.
+  static int GetNoteData(T* p, lua_State* L) {
+    const NoteData& nd = p->GetNoteData();
+    struct CCNote { int row; int track; int dur; TapNoteType type; };
+    std::vector<CCNote> notes;
+    for (int t = 0; t < nd.GetNumTracks(); ++t) {
+      FOREACH_NONEMPTY_ROW_IN_TRACK(nd, t, r) {
+        const TapNote& tn = nd.GetTapNote(t, r);
+        if (tn.type == TapNoteType_Empty || tn.type == TapNoteType_AutoKeysound) continue;
+        notes.push_back({r, t, tn.iDuration, tn.type});
+      }
+    }
+    std::sort(notes.begin(), notes.end(), [](const CCNote& a, const CCNote& b) {
+      return a.row != b.row ? a.row < b.row : a.track < b.track;
+    });
+    lua_newtable(L);
+    int idx = 1;
+    for (const CCNote& n : notes) {
+      lua_newtable(L);
+      lua_pushnumber(L, NoteRowToBeat(n.row)); lua_rawseti(L, -2, 1);
+      lua_pushnumber(L, n.track);              lua_rawseti(L, -2, 2);
+      lua_pushnumber(L, NoteRowToBeat(n.dur)); lua_rawseti(L, -2, 3);
+      lua_pushstring(L, TapNoteTypeToString(n.type).c_str()); lua_rawseti(L, -2, 4);
+      lua_rawseti(L, -2, idx++);
+    }
+    return 1;
+  }
 
   LunaPlayer() {
     ADD_METHOD(SetLife);
@@ -3761,6 +3789,7 @@ class LunaPlayer : public Luna<Player> {
     ADD_METHOD(SetActorWithJudgmentPosition);
     ADD_METHOD(SetActorWithComboPosition);
     ADD_METHOD(GetPlayerTimingData);
+    ADD_METHOD(GetNoteData);
     ADD_GET_SET_METHODS(oitg_zoom_mode);
   }
 };

@@ -64,6 +64,8 @@
 #include "Trail.h"
 #include "global.h"
 
+bool CCIsSleepingPlayer(PlayerNumber pn);  // CC fork, ScreenGameplay.cpp
+
 std::string ATTACK_DISPLAY_X_NAME(size_t p, size_t both_sides);
 void TimingWindowSecondsInit(
     size_t /*TimingWindow*/ i, std::string& sNameOut, float& defaultValueOut);
@@ -1108,7 +1110,10 @@ void Player::Update(float fDeltaTime) {
 
       Step(iTrack, iHeadRow, now, false, false);
       if (m_pPlayerState->m_PlayerController == PC_AUTOPLAY) {
-        STATSMAN->m_CurStageStats.m_bUsedAutoplay = true;
+        // CC fork: the hidden NotITG player doesn't flag the real player.
+        if (!CCIsSleepingPlayer(m_pPlayerState->m_PlayerNumber)) {
+          STATSMAN->m_CurStageStats.m_bUsedAutoplay = true;
+        }
         if (m_pPlayerStageStats) {
           m_pPlayerStageStats->m_bDisqualified = true;
         }
@@ -1444,7 +1449,10 @@ void Player::UpdateHoldNotes(
       if (m_pPlayerState->m_PlayerController != PC_HUMAN) {
         // TODO: Make the CPU miss sometimes.
         if (m_pPlayerState->m_PlayerController == PC_AUTOPLAY) {
-          STATSMAN->m_CurStageStats.m_bUsedAutoplay = true;
+          // CC fork: the hidden NotITG player doesn't flag the real player.
+          if (!CCIsSleepingPlayer(m_pPlayerState->m_PlayerNumber)) {
+            STATSMAN->m_CurStageStats.m_bUsedAutoplay = true;
+          }
           if (m_pPlayerStageStats != nullptr) {
             m_pPlayerStageStats->m_bDisqualified = true;
           }

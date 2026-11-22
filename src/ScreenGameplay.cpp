@@ -420,6 +420,11 @@ bool CCSongIsNotITG(const Song* pSong) {
 }
 
 static PlayerNumber g_CCSleepingPN = PLAYER_INVALID;
+// CC fork: true for the hidden autoplay player that only exists for NotITG
+// modfiles. Its autoplay must not mark the real player's score as autoplay.
+bool CCIsSleepingPlayer(PlayerNumber pn) {
+  return pn != PLAYER_INVALID && pn == g_CCSleepingPN;
+}
 static int LuaCCGetSleepingPlayer(lua_State* L) {
   if (g_CCSleepingPN == PLAYER_INVALID) {
     lua_pushnil(L);
@@ -2940,8 +2945,12 @@ void ScreenGameplay::SongFinished() {
   /* Extremely important: if we don't remove attacks before moving on to the
    * next screen, they'll still be turned on eventually. */
   GAMESTATE->RemoveAllActiveAttacks();
-  FOREACH_VisiblePlayerInfo(m_vPlayerInfo, pi)
+  FOREACH_VisiblePlayerInfo(m_vPlayerInfo, pi) {
+    // CC fork: NotITG extra players (P3..P8) have no attack list.
+    if (pi->m_pActiveAttackList) {
       pi->m_pActiveAttackList->Refresh();
+    }
+  }
 }
 
 void ScreenGameplay::StageFinished(bool bBackedOut) {

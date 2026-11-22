@@ -532,3 +532,58 @@ do
 		return s
 	end
 end
+
+-- CC fork: the sleeping NotITG player (hidden autoplay P2 for 1-player modfiles)
+-- is not a real player. Themes must not see it, or they build UI and stats for a
+-- player that has no profile or theme data (Simply Love's ScreenGameplay out.lua
+-- crashed on it). Modfiles (code under /Songs/) still see it, unchanged.
+if GameState and CCSleepingPlayer then
+	local getinfo = debug and debug.getinfo
+	-- level = stack level of the code that called the GameState method
+	local function from_theme(level)
+		if not getinfo then return true end
+		local info = getinfo(level + 1, "S")
+		return not (info and info.source and info.source:find("/Songs/", 1, true))
+	end
+	local function sleeper()
+		local n = CCSleepingPlayer()
+		return n and PlayerNumber[n] or nil
+	end
+	local function hidden(pn)
+		local s = sleeper()
+		return s ~= nil and pn == s and from_theme(3)
+	end
+	local function filter(name)
+		local orig = GameState[name]
+		if type(orig) ~= "function" then return end
+		GameState[name] = function(self, ...)
+			local t = orig(self, ...)
+			local s = sleeper()
+			if not s or type(t) ~= "table" or not from_theme(2) then return t end
+			local r = {}
+			for _, p in ipairs(t) do if p ~= s then r[#r + 1] = p end end
+			return r
+		end
+	end
+	filter("GetHumanPlayers")
+	filter("GetEnabledPlayers")
+	for _, name in ipairs({ "IsHumanPlayer", "IsPlayerEnabled", "IsSideJoined" }) do
+		local orig = GameState[name]
+		if type(orig) == "function" then
+			GameState[name] = function(self, pn, ...)
+				if hidden(pn) then return false end
+				return orig(self, pn, ...)
+			end
+		end
+	end
+	for _, name in ipairs({ "GetNumSidesJoined", "GetNumPlayersEnabled" }) do
+		local orig = GameState[name]
+		if type(orig) == "function" then
+			GameState[name] = function(self, ...)
+				local n = orig(self, ...)
+				if sleeper() and from_theme(2) and type(n) == "number" and n > 1 then return n - 1 end
+				return n
+			end
+		end
+	end
+end

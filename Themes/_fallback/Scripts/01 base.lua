@@ -16,10 +16,31 @@ local function cc_candidates(file)
 	return out
 end
 
+-- Windows NotITG is case-insensitive; templates lowercase whole paths.
+local function cc_ci_resolve(path)
+	if not FILEMAN or path:sub(1, 1) ~= "/" then return nil end
+	local cur = ""
+	for part in path:gmatch("[^/]+") do
+		local want, hit = part:lower(), nil
+		local ok, list = pcall(function() return FILEMAN:GetDirListing(cur .. "/", false, false) end)
+		if not ok or type(list) ~= "table" then return nil end
+		for _, name in ipairs(list) do
+			if name:lower() == want then hit = name break end
+		end
+		if not hit then return nil end
+		cur = cur .. "/" .. hit
+	end
+	return cur
+end
+
 function loadfile(file)
 	local data
 	for _, cand in ipairs(cc_candidates(file)) do
 		data = lua.ReadFile(cand)
+		if not data then
+			local real = cc_ci_resolve(cand)
+			if real then data = lua.ReadFile(real); cand = real end
+		end
 		if data then file = cand break end
 	end
 	if not data then

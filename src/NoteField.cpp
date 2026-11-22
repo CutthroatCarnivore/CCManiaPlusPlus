@@ -207,6 +207,12 @@ void NoteField::CacheAllUsedNoteSkins() {
 
   std::map<std::string, NoteDisplayCols*>::iterator it =
       m_NoteDisplays.find(sCurrentNoteSkinLower);
+  // CC fork: modfiles/dummy players can switch skins after caching; load on
+  // demand instead of asserting.
+  if (it == m_NoteDisplays.end()) {
+    CacheNoteSkin(sCurrentNoteSkinLower);
+    it = m_NoteDisplays.find(sCurrentNoteSkinLower);
+  }
   ASSERT_M(it != m_NoteDisplays.end(), sCurrentNoteSkinLower);
   m_pCurDisplay = it->second;
   memset(m_pDisplays, 0, sizeof(m_pDisplays));
@@ -217,6 +223,10 @@ void NoteField::CacheAllUsedNoteSkins() {
     NOTESKIN->ValidateNoteSkinName(sNoteSkinLower);
     MakeLower(sNoteSkinLower);
     it = m_NoteDisplays.find(sNoteSkinLower);
+    if (it == m_NoteDisplays.end()) {
+      CacheNoteSkin(sNoteSkinLower);
+      it = m_NoteDisplays.find(sNoteSkinLower);
+    }
     ASSERT_M(it != m_NoteDisplays.end(), sNoteSkinLower);
     m_pDisplays[pn] = it->second;
   }

@@ -427,7 +427,12 @@ static int llex (LexState *ls, SemInfo *seminfo) {
           } while (isalnum(ls->current) || ls->current == '_');
           ts = luaX_newstring(ls, luaZ_buffer(ls->buff),
                                   luaZ_bufflen(ls->buff));
-          if (ts->tsv.reserved > 0)  /* reserved word? */
+          /* CC fork: `cmd` is StepMania's cmd(...) sugar only when it is
+           * directly followed by '('; otherwise it is an ordinary name, so
+           * OpenITG/NotITG scripts that use `cmd` as a variable still parse. */
+          if (ts->tsv.reserved > 0 &&
+              !(ts->tsv.reserved - 1 + FIRST_RESERVED == TK_CMD &&
+                ls->current != '('))  /* reserved word? */
             return ts->tsv.reserved - 1 + FIRST_RESERVED;
           else {
             seminfo->ts = ts;

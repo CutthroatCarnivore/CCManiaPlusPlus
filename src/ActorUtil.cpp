@@ -191,6 +191,18 @@ std::string GetLegacyActorClass(XNode* pActor) {
 }
 }  // namespace
 
+// CC fork: OpenITG/NotITG Var="name" publishes the actor as a Lua global.
+static void CCSetLegacyVar(const XNode& node, Actor* pActor) {
+  std::string sVar;
+  if (pActor == nullptr || !node.GetAttrValue("Var", sVar) || sVar.empty()) {
+    return;
+  }
+  Lua* L = LUA->Get();
+  pActor->PushSelf(L);
+  lua_setglobal(L, sVar.c_str());
+  LUA->Release(L);
+}
+
 Actor* ActorUtil::LoadFromNode(const XNode* _pNode, Actor* pParentActor) {
   ASSERT(_pNode != nullptr);
 
@@ -250,6 +262,7 @@ Actor* ActorUtil::LoadFromNode(const XNode* _pNode, Actor* pParentActor) {
         if (pParentActor) {
           pNewActor->SetParent(pParentActor);
         }
+        CCSetLegacyVar(node, pNewActor);
         pNewActor->LoadFromNode(&node);
         return pNewActor;
       }
@@ -271,6 +284,9 @@ Actor* ActorUtil::LoadFromNode(const XNode* _pNode, Actor* pParentActor) {
     pRet->SetParent(pParentActor);
   }
 
+  if (bLegacy) {
+    CCSetLegacyVar(node, pRet);
+  }
   pRet->LoadFromNode(&node);
   return pRet;
 }

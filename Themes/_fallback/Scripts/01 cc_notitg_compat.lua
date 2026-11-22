@@ -134,7 +134,13 @@ if GameState then
 			if ns == nil or ns == "" then ns = "default" end
 			out[i] = ns
 		end
-		return unpack(out)
+		-- NotITG returns a table ({p1, p2}); it also concatenates/prints as P1's skin
+		return setmetatable(out, {
+			__tostring = function(t) return t[1] end,
+			__concat = function(a, b)
+				return (type(a) == "table" and a[1] or a) .. (type(b) == "table" and b[1] or b)
+			end,
+		})
 	end
 end
 
@@ -195,12 +201,33 @@ if Actor then
 	-- every frame for `time` seconds (modfiles use it as their update loop).
 	local orig_tween = Actor.tween
 	Actor.tween = function(self, t, tt, ...)
+		-- tween(time, "ease(%f,0,1,1)"): an easing expression with %f = progress
+		if type(tt) == "string" and tt:find("%%f") then
+			local src = tt
+			tt = function(x)
+				local f = loadstring("return " .. src:gsub("%%f", string.format("%.6f", x)))
+				return f and f() or x
+			end
+		end
 		if type(tt) == "string" and tt:find("%(") then
 			local f = loadstring("return " .. tt)
 			if f then
 				CCAddFrameHook(function() f() end, t, self)
 				return self:sleep(t)
 			end
+		end
+		-- NotITG: tween(time, easeFunction) -- fit the ease to a cubic bezier
+		-- through samples at 1/3 and 2/3, so ITGmania can tween with it.
+		if type(tt) == "function" then
+			local ok1, a = pcall(tt, 1/3)
+			local ok2, b = pcall(tt, 2/3)
+			if ok1 and ok2 and type(a) == "number" and type(b) == "number" then
+				local ra, rb = a - 1/27, b - 8/27
+				local p1 = (4 * ra - 2 * rb) * 3 / 4
+				local p2 = (4 * rb - 2 * ra) * 3 / 4
+				return orig_tween(self, t, "TweenType_Bezier", { 0, p1, p2, 1 })
+			end
+			return self:linear(t)
 		end
 		return orig_tween(self, t, tt, ...)
 	end
@@ -323,4 +350,185 @@ do
 		end
 	end
 	Trace("CC-NOTITG: callable actor classes = " .. n)
+end
+
+-- CC fork: remember which songs ran as NotITG modfiles so themes can keep
+-- their scores off GrooveStats/ITL. Songs from additional folders (the NotITG
+-- library) always count as NotITG songs.
+CCNotITGSongDirs = CCNotITGSongDirs or {}
+function CCRecordNotITGSong()
+	if CCIsNotITGSong and CCIsNotITGSong() and GAMESTATE then
+		local s = GAMESTATE:GetCurrentSong()
+		if s then CCNotITGSongDirs[s:GetSongDir()] = true end
+	end
+end
+function CCLastSongIsNotITG()
+	local s = GAMESTATE and GAMESTATE:GetCurrentSong()
+	if not s then return false end
+	local d = s:GetSongDir()
+	return CCNotITGSongDirs[d] == true or d:find("^/AdditionalSongs/") ~= nil
+end
+CCAddFrameHook = CCAddFrameHook
+local cc_prev_run = CCRunFrameHooks
+function CCRunFrameHooks(dt)
+	CCRecordNotITGSong()
+	if cc_prev_run then return cc_prev_run(dt) end
+end
+
+-- OpenITG/NotITG preference names that ITGmania split into ReadOnly/Writable.
+if PrefsManager and PrefsManager.GetPreference then
+	local cc_getpref = PrefsManager.GetPreference
+	PrefsManager.GetPreference = function(self, name)
+		if name == "AdditionalSongFolders" or name == "AdditionalFolders" then
+			local ro = cc_getpref(self, name .. "ReadOnly") or ""
+			local w = cc_getpref(self, name .. "Writable") or ""
+			if ro ~= "" and w ~= "" then return ro .. "," .. w end
+			return ro .. w
+		end
+		return cc_getpref(self, name)
+	end
+end
+
+-- NotITG GameState:GetCurBPS (ITGmania keeps it on SongPosition).
+if GameState and not GameState.GetCurBPS then
+	GameState.GetCurBPS = function(self)
+		local ok, bps = pcall(function() return self:GetSongPosition():GetCurBPS() end)
+		if ok and bps then return bps end
+		return self:GetSongBPS() or 1
+	end
+end
+-- NotITG Steps:GetDifficulty returns a 0-based number; only song scripts get it.
+if Steps and Steps.GetDifficulty then
+	local cc_getdiff = Steps.GetDifficulty
+	local cc_diffnum = { Difficulty_Beginner = 0, Difficulty_Easy = 1, Difficulty_Medium = 2,
+		Difficulty_Hard = 3, Difficulty_Challenge = 4, Difficulty_Edit = 5 }
+	local getinfo = debug and debug.getinfo
+	Steps.GetDifficulty = function(self)
+		local d = cc_getdiff(self)
+		if CCIsNotITGSong and CCIsNotITGSong() and getinfo then
+			local info = getinfo(2, "S")
+			if info and info.source and info.source:find("/Songs/", 1, true) then
+				return cc_diffnum[d] or d
+			end
+		end
+		return d
+	end
+end
+
+-- NotITG Actor:GetEffectX/Y/Z (position including effect offsets).
+if Actor then
+	Actor.GetEffectX = function(self) return self:GetX() end
+	Actor.GetEffectY = function(self) return self:GetY() end
+	Actor.GetEffectZ = function(self) return self:GetZ() end
+end
+
+-- NotITG ActorFrame:GetChildren() returns an ordered array, and GetChild()
+-- returns one actor even when names repeat. Only song scripts see this.
+do
+	local getinfo = debug and debug.getinfo
+	local function song_caller()
+		if not (CCIsNotITGSong and CCIsNotITGSong() and getinfo) then return false end
+		local info = getinfo(3, "S")
+		return info ~= nil and info.source ~= nil and info.source:find("/Songs/", 1, true) ~= nil
+	end
+	if ActorFrame and ActorFrame.GetChildren and ActorFrame.GetChildAt then
+		local cc_getchildren = ActorFrame.GetChildren
+		ActorFrame.GetChildren = function(self)
+			if not song_caller() then return cc_getchildren(self) end
+			local out = {}
+			for i = 0, self:GetNumChildren() - 1 do
+				local c = self:GetChildAt(i)
+				if c then out[#out + 1] = c end
+			end
+			return out
+		end
+		local cc_getchild = ActorFrame.GetChild
+		ActorFrame.GetChild = function(self, name)
+			local r = cc_getchild(self, name)
+			if type(r) == "table" and not r.GetName and song_caller() then
+				return r[1]
+			end
+			if r == nil and name == "" and song_caller() and self:GetNumChildren() > 0 then
+				return self:GetChildAt(0)
+			end
+			return r
+		end
+	end
+end
+
+-- NotITG's Lua lets a gsub replacement function return a non-string (it is
+-- ignored and the match kept); stock 5.1 errors. Keep the match instead.
+do
+	local cc_gsub = string.gsub
+	string.gsub = function(s, pat, repl, n)
+		if type(repl) == "function" then
+			local f = repl
+			repl = function(...)
+				local r = f(...)
+				local t = type(r)
+				if t == "string" or t == "number" or r == nil or r == false then return r end
+				return nil
+			end
+		end
+		return cc_gsub(s, pat, repl, n)
+	end
+end
+-- NotITG GameState:GetX/GetY/GetZ(pn, col, yoffset): arrow-path position. ITGmania
+-- has no Lua hook into ArrowEffects yet, so return the neutral path.
+if GameState then
+	if not GameState.GetZ then GameState.GetZ = function() return 0 end end
+	if not GameState.GetX then GameState.GetX = function() return 0 end end
+	if not GameState.GetY then GameState.GetY = function(self, pn, col, yoff) return yoff or 0 end end
+end
+
+-- OpenITG/NotITG screen-edge names
+if SCREEN_LEFT_X == nil and SCREEN_LEFT then SCREEN_LEFT_X = SCREEN_LEFT end
+if SCREEN_RIGHT_X == nil and SCREEN_RIGHT then SCREEN_RIGHT_X = SCREEN_RIGHT end
+if SCREEN_TOP_Y == nil and SCREEN_TOP then SCREEN_TOP_Y = SCREEN_TOP end
+if SCREEN_BOTTOM_Y == nil and SCREEN_BOTTOM then SCREEN_BOTTOM_Y = SCREEN_BOTTOM end
+
+-- NotITG Polygon/line actors: SetLineWidth (ITGmania draws lines at fixed width)
+if ActorMultiVertex and not ActorMultiVertex.SetLineWidth then
+	ActorMultiVertex.SetLineWidth = function(self) return self end
+end
+
+-- NotITG 3D models: line/polygon-mode setters (ITGmania has no wireframe mode)
+if Model then
+	for _, m in ipairs({ "SetLineWidth", "SetLineColor", "SetPolygonMode" }) do
+		if not rawget(Model, m) then Model[m] = function(self) return self end end
+	end
+end
+
+-- In NotITG an actor is userdata and prints as "<Class> (address)". ITGmania
+-- actors are tables, so song scripts that test type()/tostring() see them as
+-- that. Only song code gets the NotITG answer.
+do
+	local cc_type, cc_tostring = type, tostring
+	local getmt, getinfo = debug and debug.getmetatable, debug and debug.getinfo
+	local function actor_class(v)
+		if cc_type(v) ~= "table" or not getmt then return nil end
+		local mt = getmt(v)
+		local f = mt and rawget(mt, "__type")
+		if cc_type(f) ~= "function" then return nil end
+		local ok, name = pcall(f)
+		return ok and name or nil
+	end
+	local function song_caller()
+		if not (CCIsNotITGSong and CCIsNotITGSong() and getinfo) then return false end
+		local info = getinfo(3, "S")
+		return info ~= nil and info.source ~= nil and info.source:find("/Songs/", 1, true) ~= nil
+	end
+	type = function(v)
+		local t = cc_type(v)
+		if t == "table" and CCIsNotITGSong and CCIsNotITGSong() and actor_class(v) and song_caller() then
+			return "userdata"
+		end
+		return t
+	end
+	tostring = function(v)
+		local s = cc_tostring(v)
+		local cls = cc_type(v) == "table" and CCIsNotITGSong and CCIsNotITGSong() and actor_class(v)
+		if cls and song_caller() then return cls .. " (" .. s:gsub("^table: ", "") .. ")" end
+		return s
+	end
 end

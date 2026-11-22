@@ -105,6 +105,36 @@ class AutoreleasePool {
   [m_Window setContentSize:contentRect.size];
   [m_Window setTitle:[NSString stringWithUTF8String:p.sWindowTitle.c_str()]];
   [m_Window center];
+  // CC fork: optional fixed window placement, "x,y,w,h" in top-left screen
+  // coordinates (same as the macOS window list), from $CC_WINDOW_RECT or
+  // Save/WindowRect.txt. Lets the game open straight onto the stream display.
+  {
+    std::string sRect;
+    if (const char* env = getenv("CC_WINDOW_RECT")) {
+      sRect = env;
+    } else {
+      GetFileContents("Save/WindowRect.txt", sRect, true);
+    }
+    double x, y, w, h;
+    // "bottomright:<display name>" = Rectangle's Ctrl-Opt-0 slot on that display.
+    if (sRect.rfind("bottomright:", 0) == 0) {
+      NSString* want = [NSString stringWithUTF8String:sRect.substr(12).c_str()];
+      for (NSScreen* s in [NSScreen screens]) {
+        NSString* name = [s respondsToSelector:@selector(localizedName)] ? [s localizedName] : @"";
+        if ([want length] && [name rangeOfString:want options:NSCaseInsensitiveSearch].location != NSNotFound) {
+          NSRect vf = [s visibleFrame];
+          NSRect r = NSMakeRect(vf.origin.x + vf.size.width / 2, vf.origin.y,
+                                vf.size.width / 2, vf.size.height / 2);
+          [m_Window setFrame:NSIntegralRect(r) display:YES];
+          break;
+        }
+      }
+    } else if (!sRect.empty() && sscanf(sRect.c_str(), "%lf,%lf,%lf,%lf", &x, &y, &w, &h) == 4 &&
+        w > 100 && h > 100 && [[NSScreen screens] count] > 0) {
+      const CGFloat fMainH = [[[NSScreen screens] objectAtIndex:0] frame].size.height;
+      [m_Window setFrame:NSMakeRect(x, fMainH - (y + h), w, h) display:YES];
+    }
+  }
   [m_Window makeKeyAndOrderFront:nil];
 }
 @end

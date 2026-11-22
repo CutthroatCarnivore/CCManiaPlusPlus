@@ -191,10 +191,25 @@ function CCRunFrameHooks(dt)
 		if h.dead then
 			table.remove(CCFrameHooks, i)
 		else
-			local ok, err = pcall(h.fn, dt)
+			local ok, err = xpcall(function() return h.fn(dt) end,
+				function(e) return tostring(e) .. "\n" .. (debug and debug.traceback and debug.traceback("", 2) or "") end)
 			h.left = h.left - dt
-			if not ok then Trace("CC-NOTITG hook error: " .. tostring(err)) end
-			if not ok or h.left <= 0 then table.remove(CCFrameHooks, i) end
+			if ok then h.fails = 0
+			else
+				h.fails = (h.fails or 0) + 1
+				h.total_fails = (h.total_fails or 0) + 1
+				local key = tostring(err):match("^[^\n]*") or "?"
+				CCHookErrSeen = CCHookErrSeen or {}
+				if not CCHookErrSeen[key] then
+					CCHookErrSeen[key] = true
+					Trace("CC-NOTITG hook error: " .. tostring(err))
+				end
+			end
+			-- keep the hook alive through errors; only drop it after 600 straight failing frames
+			if (not ok and h.fails >= 600) or h.left <= 0 then
+				if not ok then Trace("CC-NOTITG hook disabled after repeated errors") end
+				table.remove(CCFrameHooks, i)
+			end
 		end
 	end
 end

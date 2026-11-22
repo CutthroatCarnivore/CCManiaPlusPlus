@@ -1,8 +1,29 @@
 -- Override Lua's loadfile to use lua.ReadFile.
+-- CC fork: NotITG-compatible path handling. Modfiles pass paths like
+-- "./songs/pack/song/x.lua" (lowercase, Windows-style) or paths relative to
+-- the song folder; missing files report Lua's standard "cannot read".
+local function cc_candidates(file)
+	local out = { file }
+	local f = file:gsub("\\", "/"):gsub("/+", "/")
+	f = f:gsub("^%./", "")
+	if f:lower():sub(1, 6) == "songs/" then
+		out[#out + 1] = "/Songs/" .. f:sub(7)
+	end
+	if f:sub(1, 1) ~= "/" and GAMESTATE and GAMESTATE.GetCurrentSong then
+		local song = GAMESTATE:GetCurrentSong()
+		if song then out[#out + 1] = song:GetSongDir() .. f end
+	end
+	return out
+end
+
 function loadfile(file)
-	local data, err = lua.ReadFile(file)
+	local data
+	for _, cand in ipairs(cc_candidates(file)) do
+		data = lua.ReadFile(cand)
+		if data then file = cand break end
+	end
 	if not data then
-		return nil, ("what " .. file)
+		return nil, ("cannot read " .. file)
 	end
 
 	local chunk, err = load(

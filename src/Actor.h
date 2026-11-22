@@ -750,6 +750,16 @@ class Actor : public MessageSubscriber {
   // parents. -Kyz
   Actor* m_FakeParent;
   CCShader* m_pCCShader = nullptr;  // CC fork
+ public:
+  // CC fork: NotITG secondary transform (x2/y2/z2, rotation*2, zoom*2,
+  // skew*2), applied after the normal transform; not tweened.
+  struct CCTransform2 {
+    RageVector3 pos = RageVector3(0, 0, 0);
+    RageVector3 rot = RageVector3(0, 0, 0);
+    RageVector3 scale = RageVector3(1, 1, 1);
+    float skewx = 0, skewy = 0;
+  } m_CC2;
+ protected:
   // WrapperStates provides a way to wrap the actor inside ActorFrames,
   // applicable to any actor, not just ones the theme creates.
   std::vector<Actor*> m_WrapperStates;

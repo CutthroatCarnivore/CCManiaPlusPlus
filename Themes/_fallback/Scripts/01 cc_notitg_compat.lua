@@ -125,6 +125,17 @@ if GameState then
 		return unpack(out)
 	end
 	GameState.GetVersion = function() return "v4.9.1" end
+	-- NotITG: noteskin name of each player, as multiple return values
+	GameState.GetCurrentNoteSkins = function(self)
+		local out = {}
+		for i, pn in ipairs({ PLAYER_1, PLAYER_2 }) do
+			local ps = self:GetPlayerState(pn)
+			local ns = ps and ps:GetPlayerOptions("ModsLevel_Preferred"):NoteSkin() or nil
+			if ns == nil or ns == "" then ns = "default" end
+			out[i] = ns
+		end
+		return unpack(out)
+	end
 end
 
 if Actor then
@@ -244,4 +255,72 @@ if GameState and GameState.ApplyModifiers then
 		CCLastApply = tostring(s) .. " @" .. tostring(pn)
 		return cpp_apply(self, s, pn)
 	end
+end
+
+-- (Relative/NotITG-style loadfile paths are handled in 01 base.lua.)
+
+-- NotITG Actor:xywh(x, y, w, h): position plus size in one call.
+if Actor then
+	Actor.xywh = function(self, x, y, w, h)
+		self:xy(x, y)
+		if w and h then self:zoomto(w, h) end
+		return self
+	end
+end
+
+-- NotITG passes player numbers as 0-based numbers (0 = P1 ... 7 = P8).
+-- Translate for GAMESTATE player functions; P3..P8 exist only in NotITG songs.
+if GameState then
+	local function is_notitg() return CCIsNotITGSong and CCIsNotITGSong() or false end
+	local function wrap(name, extra_result)
+		local orig = GameState[name]
+		if type(orig) ~= "function" then return end
+		GameState[name] = function(self, pn, ...)
+			if type(pn) == "number" then
+				if pn >= 2 then
+					if extra_result == "bool" then return is_notitg() end
+					return nil
+				end
+				pn = PlayerNumber[pn + 1]
+			end
+			return orig(self, pn, ...)
+		end
+	end
+	wrap("IsPlayerEnabled", "bool")
+	wrap("IsHumanPlayer")
+	wrap("IsSideJoined")
+	wrap("GetPlayerState")
+	wrap("GetCurrentSteps")
+	wrap("SetCurrentSteps")
+	wrap("GetPlayerDisplayName")
+end
+
+-- NotITG timing/system getters that ITGmania lacks.
+if GameState then
+	GameState.GetSongTime = function(self) return self:GetCurMusicSeconds() end
+	GameState.GetSongTimeVisible = function(self) return self:GetCurMusicSeconds() end
+	GameState.SetSongEndTime = function(self) return self end
+	GameState.FinishSong = function(self) return self end
+	GameState.ForceSmoothLines = function(self) return self end
+	GameState.IsEditMode = function(self) return false end
+end
+if RageDisplay then
+	RageDisplay.GetVendor = function() return "Apple" end
+	RageDisplay.GetRenderer = function() return "OpenGL" end
+end
+
+-- NotITG: actors are callable -- frame('Name') == frame:GetChild('Name').
+do
+	local reg = debug and debug.getregistry and debug.getregistry()
+	local n = 0
+	if reg then
+		for k, mt in pairs(reg) do
+			if type(k) == "string" and type(mt) == "table" and rawget(mt, "__index") ~= nil
+				and type(_G[k]) == "table" and _G[k].GetChild and rawget(mt, "__call") == nil then
+				mt.__call = function(self, name) return self:GetChild(name) end
+				n = n + 1
+			end
+		end
+	end
+	Trace("CC-NOTITG: callable actor classes = " .. n)
 end

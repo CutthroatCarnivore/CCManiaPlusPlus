@@ -1,4 +1,6 @@
 #include "Actor.h"
+#include <cstdlib>
+#include "RageLog.h"
 #include "CCShader.h"
 
 #include <algorithm>
@@ -191,6 +193,7 @@ Actor::Actor(const Actor& cpy) : MessageSubscriber(cpy) {
   CPY(m_pParent);
   CPY(m_FakeParent);
   CPY(m_pCCShader);  // CC fork
+  CPY(m_CC2);
   CPY(m_pLuaInstance);
 
   m_WrapperStates.resize(cpy.m_WrapperStates.size());
@@ -775,6 +778,28 @@ void Actor::BeginDraw() {
   const float skewY = m_pTempState->fSkewY;
   if (skewY != 0) {
     DISPLAY->SkewY(skewY);
+  }
+
+  // CC fork: NotITG secondary transform
+  {
+    const CCTransform2& t = m_CC2;
+    if (t.pos.x != 0 || t.pos.y != 0 || t.pos.z != 0) {
+      RageMatrix m;
+      RageMatrixTranslate(&m, t.pos.x, t.pos.y, t.pos.z);
+      DISPLAY->PreMultMatrix(m);
+    }
+    if (t.rot.x != 0 || t.rot.y != 0 || t.rot.z != 0) {
+      RageMatrix m;
+      RageMatrixRotationXYZ(&m, t.rot.x, t.rot.y, t.rot.z);
+      DISPLAY->PreMultMatrix(m);
+    }
+    if (t.scale.x != 1 || t.scale.y != 1 || t.scale.z != 1) {
+      RageMatrix m;
+      RageMatrixScale(&m, t.scale.x, t.scale.y, t.scale.z);
+      DISPLAY->PreMultMatrix(m);
+    }
+    if (t.skewx != 0) DISPLAY->SkewX(t.skewx);
+    if (t.skewy != 0) DISPLAY->SkewY(t.skewy);
   }
 
   // If the texture is not at the origin, translate the texture
@@ -1581,6 +1606,15 @@ void Actor::HandleMessage(const Message& msg) { PlayCommandNoRecurse(msg); }
 
 void Actor::PlayCommandNoRecurse(const Message& msg) {
   const apActorCommands* pCmd = GetCommand(msg.GetName());
+  // CC fork debug: CC_TRACE_CMDS=1 logs the order key modfile commands run in.
+  static const bool s_bCCTrace = getenv("CC_TRACE_CMDS") != nullptr;
+  if (s_bCCTrace && pCmd != nullptr) {
+    const std::string& n = msg.GetName();
+    if (n == "On" || n == "Load" || n == "Make" || n == "BeginUpdate" ||
+        n == "ScreenReady" || n == "Init") {
+      LOG->Trace("CC-CMD %s on '%s'", n.c_str(), GetName().c_str());
+    }
+  }
   if (pCmd != nullptr && (*pCmd)->IsSet() && !(*pCmd)->IsNil()) {
     RunCommands(*pCmd, &msg.GetParamTable());
   }
@@ -2418,6 +2452,28 @@ class LunaActor : public Luna<Actor> {
     return 1;
   }
   // CC fork: NotITG shader API
+  // CC fork: NotITG secondary transform
+#define CC2SET(name, expr) \
+  static int name(T* p, lua_State* L) { p->m_CC2.expr = FArg(1); COMMON_RETURN_SELF; }
+  CC2SET(x2, pos.x)
+  CC2SET(y2, pos.y)
+  CC2SET(z2, pos.z)
+  CC2SET(rotationx2, rot.x)
+  CC2SET(rotationy2, rot.y)
+  CC2SET(rotationz2, rot.z)
+  CC2SET(zoomx2, scale.x)
+  CC2SET(zoomy2, scale.y)
+  CC2SET(zoomz2, scale.z)
+  CC2SET(skewx2, skewx)
+  CC2SET(skewy2, skewy)
+#undef CC2SET
+  static int zoom2(T* p, lua_State* L) {
+    p->m_CC2.scale = RageVector3(FArg(1), FArg(1), FArg(1));
+    COMMON_RETURN_SELF;
+  }
+  static int GetX2(T* p, lua_State* L) { lua_pushnumber(L, p->m_CC2.pos.x); return 1; }
+  static int GetY2(T* p, lua_State* L) { lua_pushnumber(L, p->m_CC2.pos.y); return 1; }
+  static int GetZ2(T* p, lua_State* L) { lua_pushnumber(L, p->m_CC2.pos.z); return 1; }
   static int GetShader(T* p, lua_State* L) {
     p->GetCCShader(true)->PushSelf(L);
     return 1;
@@ -2654,6 +2710,21 @@ class LunaActor : public Luna<Actor> {
     ADD_METHOD(GetFakeParent);
     ADD_METHOD(SetFakeParent);
     ADD_METHOD(GetShader);  // CC fork
+    ADD_METHOD(x2);
+    ADD_METHOD(y2);
+    ADD_METHOD(z2);
+    ADD_METHOD(rotationx2);
+    ADD_METHOD(rotationy2);
+    ADD_METHOD(rotationz2);
+    ADD_METHOD(zoomx2);
+    ADD_METHOD(zoomy2);
+    ADD_METHOD(zoomz2);
+    ADD_METHOD(skewx2);
+    ADD_METHOD(skewy2);
+    ADD_METHOD(zoom2);
+    ADD_METHOD(GetX2);
+    ADD_METHOD(GetY2);
+    ADD_METHOD(GetZ2);
     ADD_METHOD(SetShader);
     ADD_METHOD(ClearShader);
     ADD_METHOD(AddWrapperState);

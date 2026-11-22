@@ -679,7 +679,17 @@ void luaV_execute (lua_State *L, int nexeccalls) {
         continue;
       }
       case OP_TFORLOOP: {
-        StkId cb = ra + 3;  /* call base */
+        StkId cb;
+        /* CC fork: Lua 5.0 compat for NotITG modfiles -- `for k,v in t do`
+           iterates a plain table with next(), like Lua 5.0 did. */
+        if (ttistable(ra) && ttisnil(luaT_gettmbyobj(L, ra, TM_CALL))) {
+          TString *ns;
+          Protect(ns = luaS_newliteral(L, "next"));
+          ra = RA(i);
+          setobjs2s(L, ra+1, ra);
+          setobj2s(L, ra, luaH_getstr(hvalue(gt(L)), ns));
+        }
+        cb = ra + 3;  /* call base */
         setobjs2s(L, cb+2, ra+2);
         setobjs2s(L, cb+1, ra+1);
         setobjs2s(L, cb, ra);

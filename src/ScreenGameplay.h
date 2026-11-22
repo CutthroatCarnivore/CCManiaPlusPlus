@@ -156,6 +156,12 @@ class PlayerInfo {
 
 /** @brief The music plays, the notes scroll, and the Player is pressing
  * buttons. */
+// CC fork: true if the song carries a NotITG/OpenITG XML modfile.
+class Song;
+bool CCSongIsNotITG(const Song* pSong);
+// NotITG has players P1..P8; P3..P8 are dummies in the fork.
+static const int CC_NOTITG_EXTRA_PLAYERS = 6;
+
 class ScreenGameplay : public ScreenWithMenuElements {
  public:
   ScreenGameplay();

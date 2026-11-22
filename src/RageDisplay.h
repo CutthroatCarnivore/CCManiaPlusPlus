@@ -301,6 +301,9 @@ class RageDisplay {
       uintptr_t, const std::string&, int iCount, const float* pValues) {}
   virtual void CCSetUniformInt(uintptr_t, const std::string&, int) {}
   virtual void CCBindTextureUnit(int iUnit, uintptr_t iTexHandle) {}
+  // CC fork: NotITG AFT semantics -- copy what has been drawn so far into a
+  // texture (bottom-left origin, like an FBO render).
+  virtual void CCCaptureScreen(uintptr_t iTexHandle, int iWidth, int iHeight) {}
   virtual bool IsEffectModeSupported(EffectMode effect) {
     return effect == EffectMode_Normal;
   }

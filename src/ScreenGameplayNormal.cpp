@@ -1,4 +1,5 @@
 #include "ScreenGameplayNormal.h"
+#include "GameState.h"
 
 #include <vector>
 
@@ -11,9 +12,16 @@ REGISTER_SCREEN_CLASS(ScreenGameplayNormal);
 
 void ScreenGameplayNormal::FillPlayerInfo(
     std::vector<PlayerInfo>& vPlayerInfoOut) {
-  vPlayerInfoOut.resize(NUM_PLAYERS);
+  // CC fork: NotITG modfiles expect PlayerP1..P8; add P3..P8 as dummies.
+  const bool bNotITG = CCSongIsNotITG(GAMESTATE->m_pCurSong);
+  vPlayerInfoOut.resize(NUM_PLAYERS + (bNotITG ? CC_NOTITG_EXTRA_PLAYERS : 0));
   FOREACH_PlayerNumber(p) vPlayerInfoOut[p].Load(
       p, MultiPlayer_Invalid, true, Difficulty_Invalid);
+  if (bNotITG) {
+    for (int d = 0; d < CC_NOTITG_EXTRA_PLAYERS; ++d) {
+      vPlayerInfoOut[NUM_PLAYERS + d].LoadDummyP1(d, 0);
+    }
+  }
 };
 
 // lua end

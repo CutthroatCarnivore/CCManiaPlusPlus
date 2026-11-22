@@ -265,6 +265,9 @@ void PlayerInfo::LoadDummyP1(int iDummyIndex, int iAddToDifficulty) {
 
   // PlayerOptions needs to be set now so that we load the correct NoteSkin.
   m_PlayerStateDummy = *GAMESTATE->m_pPlayerState[PLAYER_1];
+  // CC fork: PlayerOptions::operator= doesn't copy m_pn, so a dummy's options
+  // had no player number and asserted once its notefield actually drew.
+  m_PlayerStateDummy.SetPlayerNumber(PLAYER_1);
 }
 
 PlayerInfo::~PlayerInfo() {
@@ -398,7 +401,7 @@ ScreenGameplay::ScreenGameplay() {
 // Modfiles proxy, hide and mod that second field, so 1-player charts written
 // for NotITG need it. We join a hidden autoplay P2 with the same chart for the
 // duration of gameplay and unjoin it (dropping its stats) before results.
-static bool CCSongIsNotITG(const Song* pSong) {
+bool CCSongIsNotITG(const Song* pSong) {
   if (pSong == nullptr) return false;
   std::vector<BackgroundChange> v = pSong->GetForegroundChanges();
   const std::vector<BackgroundChange>& bg =
@@ -687,8 +690,13 @@ void ScreenGameplay::Init() {
   float left_edge[NUM_PLAYERS] = {0.0f, SCREEN_WIDTH / 2.0f};
   FOREACH_EnabledPlayerInfo(m_vPlayerInfo, pi) {
     std::string sName = ssprintf("Player%s", pi->GetName().c_str());
+    // CC fork: NotITG's extra players P3..P8 are dummies here.
+    if (pi->m_bIsDummy && CCSongIsNotITG(GAMESTATE->m_pCurSong)) {
+      sName = ssprintf("PlayerP%d", 3 + pi->m_iDummyIndex);
+      pi->m_pPlayer->SetVisible(false);  // asleep until a modfile uses it
+    }
     pi->m_pPlayer->SetName(sName);
-    if (pi->m_pn == m_CCSleepingPN) {
+    if (pi->m_pn == m_CCSleepingPN && !pi->m_bIsDummy) {
       pi->m_pPlayer->SetVisible(false);  // CC fork: asleep until woken
     }
 
@@ -921,6 +929,9 @@ void ScreenGameplay::Init() {
   this->AddChild(&m_textSongOptions);
 
   FOREACH_VisiblePlayerInfo(m_vPlayerInfo, pi) {
+    if (pi->m_bIsDummy && CCSongIsNotITG(GAMESTATE->m_pCurSong)) {
+      continue;  // CC fork: NotITG extra players P3..P8 have no UI
+    }
     ASSERT(pi->m_pActiveAttackList == nullptr);
     pi->m_pActiveAttackList = new ActiveAttackList;
     pi->m_pActiveAttackList->LoadFromFont(

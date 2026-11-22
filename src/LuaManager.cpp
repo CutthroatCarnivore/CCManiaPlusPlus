@@ -316,6 +316,25 @@ LuaManager::~LuaManager() {
   RageUtil::SafeDelete(pImpl);
 }
 
+// CC fork debug: CC_LUA_WATCHDOG=1 writes the Lua location to
+// /tmp/cc_lua_watchdog.txt whenever a Lua thread runs 50M instructions
+// (finds infinite loops in modfiles; hooks are per-thread, so set on each).
+#include <cstdio>
+#include <cstdlib>
+static void CCLuaWatchdogHook(lua_State* L, lua_Debug* ar) {
+  static int hits = 0;
+  if (++hits > 20) return;
+  FILE* f = fopen("/tmp/cc_lua_watchdog.txt", "a");
+  if (!f) return;
+  fprintf(f, "---- hit %d\n", hits);
+  lua_Debug d;
+  for (int lvl = 0; lvl < 12 && lua_getstack(L, lvl, &d); ++lvl) {
+    lua_getinfo(L, "Sln", &d);
+    fprintf(f, "  %s:%d %s\n", d.short_src, d.currentline, d.name ? d.name : "?");
+  }
+  fclose(f);
+}
+
 Lua* LuaManager::Get() {
   bool bLocked = false;
   if (!pImpl->g_pLock.IsLockedByThisThread()) {
@@ -340,6 +359,9 @@ Lua* LuaManager::Get() {
   pImpl->g_ActiveStates[pRet] = bLocked;
   if (LUADEBUG) {
     LUADEBUG->ActivateState(pRet);
+  }
+  if (getenv("CC_LUA_WATCHDOG") != nullptr) {
+    lua_sethook(pRet, CCLuaWatchdogHook, LUA_MASKCOUNT, 50000000);
   }
   return pRet;
 }

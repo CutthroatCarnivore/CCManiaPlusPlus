@@ -1,4 +1,6 @@
 #include "ActorFrameTexture.h"
+#include "PlayerOptions.h"  // CC fork: g_bCCNotITGColumns
+#include "RageDisplay.h"
 
 #include <cinttypes>
 #include <cstdint>
@@ -79,6 +81,15 @@ void ActorFrameTexture::Create() {
 
 void ActorFrameTexture::DrawPrimitives() {
   if (m_pRenderTarget == nullptr) {
+    return;
+  }
+
+  // CC fork: in NotITG an ActorFrameTexture with no children captures the
+  // screen drawn so far (screen-space warps, feedback trails, etc.).
+  if (m_SubActors.empty() && g_bCCNotITGColumns) {
+    DISPLAY->CCCaptureScreen(m_pRenderTarget->GetTexHandle(),
+                             m_pRenderTarget->GetImageWidth(),
+                             m_pRenderTarget->GetImageHeight());
     return;
   }
 

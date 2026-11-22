@@ -9,8 +9,54 @@ CC_NOTITG_COMPAT = 1
 if _ENV == nil then _ENV = _G end
 
 -- Lua 5.0 leftovers not covered by ITGmania's Lua 5.1 compat flags
-if not table.getn then table.getn = function(t) return #t end end
-if not table.setn then table.setn = function() end end
+-- NotITG keeps Lua 5.0-style explicit sizes: table.insert/remove record the
+-- size and `#` honors it (the VM side is in lvm.c, CC fork). Only calls made
+-- from song modfiles (/Songs/...) are tracked, so theme code is untouched.
+do
+	local tinsert, tremove = table.insert, table.remove
+	local sizes = setmetatable({}, { __mode = "k" })
+	if debug and debug.getregistry then debug.getregistry().CCSizes = sizes end
+	local getinfo = debug and debug.getinfo
+	local notitg = CCIsNotITGSong
+	local function from_modfile()
+		-- cheap gate first: only while a NotITG modfile song is loaded
+		if not (notitg and notitg()) then return false end
+		local info = getinfo and getinfo(3, "S")
+		local src = info and info.source or ""
+		return src:find("/Songs/", 1, true) ~= nil
+	end
+	local function getn(t) return sizes[t] or #t end
+	table.getn = getn
+	table.setn = function(t, n) sizes[t] = n end
+	table.insert = function(t, a, b)
+		if not from_modfile() and sizes[t] == nil then
+			if b == nil then return tinsert(t, a) end
+			return tinsert(t, a, b)
+		end
+		local n = getn(t)
+		if b == nil then
+			t[n + 1] = a
+		else
+			for i = n, a, -1 do t[i + 1] = t[i] end
+			t[a] = b
+		end
+		sizes[t] = n + 1
+	end
+	table.remove = function(t, pos)
+		if not from_modfile() and sizes[t] == nil then
+			if pos == nil then return tremove(t) end
+			return tremove(t, pos)
+		end
+		local n = getn(t)
+		if n <= 0 then return nil end
+		pos = pos or n
+		local v = t[pos]
+		for i = pos, n - 1 do t[i] = t[i + 1] end
+		t[n] = nil
+		sizes[t] = n - 1
+		return v
+	end
+end
 if not string.gfind then string.gfind = string.gmatch end
 if not math.mod then math.mod = math.fmod end
 
@@ -154,6 +200,7 @@ if Actor then
 		CCAddFrameHook(function()
 			if self:GetVisible() then
 				CCLuaEffectRuns = (CCLuaEffectRuns or 0) + 1
+				if CCWatchdogArm then CCWatchdogArm() end
 				self:playcommand(cmdname)
 			else
 				CCLuaEffectSkips = (CCLuaEffectSkips or 0) + 1

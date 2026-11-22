@@ -374,6 +374,27 @@ static void Arith (lua_State *L, StkId ra, const TValue *rb,
 
 
 
+
+/* CC fork: NotITG keeps Lua 5.0-style explicit table sizes (table.insert/
+   table.remove record them; # honors them). Mirin's swap-remove idiom
+   `t[i] = table.remove(t)` only terminates with that behavior. The compat
+   layer records sizes in registry.CCSizes (weak keys) for modfile code only. */
+static TString *cc_sizes_key = NULL;
+static const TValue *cc_tracked_size (lua_State *L, Table *h) {
+  const TValue *st;
+  TValue k;
+  const TValue *v;
+  if (cc_sizes_key == NULL) {
+    cc_sizes_key = luaS_newliteral(L, "CCSizes");
+    luaS_fix(cc_sizes_key);
+  }
+  st = luaH_getstr(hvalue(registry(L)), cc_sizes_key);
+  if (!ttistable(st)) return NULL;
+  sethvalue(L, &k, h);
+  v = luaH_get(hvalue(st), &k);
+  return ttisnumber(v) ? v : NULL;
+}
+
 void luaV_execute (lua_State *L, int nexeccalls) {
   LClosure *cl;
   StkId base;
@@ -515,7 +536,12 @@ void luaV_execute (lua_State *L, int nexeccalls) {
         const TValue *rb = RB(i);
         switch (ttype(rb)) {
           case LUA_TTABLE: {
-            setnvalue(ra, cast_num(luaH_getn(hvalue(rb))));
+            const TValue *cc_sz = cc_tracked_size(L, hvalue(rb));  /* CC fork */
+            if (cc_sz != NULL) {
+              setnvalue(ra, nvalue(cc_sz));
+            } else {
+              setnvalue(ra, cast_num(luaH_getn(hvalue(rb))));
+            }
             break;
           }
           case LUA_TSTRING: {

@@ -1920,6 +1920,17 @@ void RageDisplay_Legacy::CCBindTextureUnit(int iUnit, uintptr_t iTexHandle) {
   glActiveTextureARB(GL_TEXTURE0_ARB);
 }
 
+void RageDisplay_Legacy::CCCaptureScreen(uintptr_t iTexHandle, int iWidth, int iHeight) {
+  if (iTexHandle == 0) return;
+  GLint vp[4];
+  glGetIntegerv(GL_VIEWPORT, vp);
+  const int w = std::min(iWidth, static_cast<int>(vp[2]));
+  const int h = std::min(iHeight, static_cast<int>(vp[3]));
+  glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(iTexHandle));
+  glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, vp[0], vp[1], w, h);
+  glBindTexture(GL_TEXTURE_2D, 0);
+}
+
 void RageDisplay_Legacy::SetEffectMode(EffectMode effect) {
   if (!GLEW_ARB_fragment_program || !GLEW_ARB_shading_language_100 ||
       !GLEW_ARB_shader_objects) {

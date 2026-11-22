@@ -429,9 +429,17 @@ DrawOrder = {
 -- function Actor:SetDrawOrder
 
 -- deprecated aliases:
+-- CC fork: NotITG/OpenITG semantics. hidden(0) SHOWS (numbers: 0 = false);
+-- stock ITGmania did visible(not 0) == visible(false) and logged an error on
+-- every call. Used every frame by NotITG modfiles, so no error spam either.
 function Actor:hidden(bHide)
-	lua.ReportScriptError("hidden is deprecated, use visible instead. (used on ".. self:GetName() ..")")
+	if type(bHide) == "number" then
+		bHide = (bHide ~= 0)
+	elseif bHide == nil then
+		bHide = true
+	end
 	self:visible(not bHide)
+	return self
 end
 
 -- (c) 2006-2012 Glenn Maynard, the Spinal Shark Collective, et al.

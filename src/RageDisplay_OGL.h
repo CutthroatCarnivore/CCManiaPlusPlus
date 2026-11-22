@@ -67,6 +67,7 @@ class RageDisplay_Legacy : public RageDisplay {
                     const float* pValues) override;
   void CCSetUniformInt(uintptr_t h, const std::string& sName, int i) override;
   void CCBindTextureUnit(int iUnit, uintptr_t iTexHandle) override;
+  void CCCaptureScreen(uintptr_t iTexHandle, int iWidth, int iHeight) override;
   void SetBlendMode(BlendMode mode);
   bool SupportsTextureFormat(RagePixelFormat pixfmt, bool realtime = false);
   bool SupportsPerVertexMatrixScale();

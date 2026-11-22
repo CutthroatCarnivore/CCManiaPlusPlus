@@ -65,6 +65,13 @@ bool ActorUtil::ResolvePath(
       if (optional) {
         return false;
       }
+      // CC fork: like NotITG, a song modfile pointing at a missing file just
+      // gets a blank actor -- no blocking Abort/Retry/Ignore dialog mid-song.
+      if (BeginsWith(sPath, "/Songs/") || BeginsWith(sPath, "/AdditionalSongs/")) {
+        LOG->Warn("%s: references missing file \"%s\" (skipped)",
+                  sName.c_str(), sPath.c_str());
+        return false;
+      }
       std::string sError = ssprintf(
           "%s: references a file \"%s\" which doesn't exist", sName.c_str(),
           sPath.c_str());
@@ -85,6 +92,10 @@ bool ActorUtil::ResolvePath(
 
     THEME->FilterFileLanguages(asPaths);
 
+    if (asPaths.size() > 1 &&
+        (BeginsWith(sPath, "/Songs/") || BeginsWith(sPath, "/AdditionalSongs/"))) {
+      asPaths.erase(asPaths.begin() + 1, asPaths.end());  // CC fork: take first
+    }
     if (asPaths.size() > 1) {
       std::string sError = ssprintf(
           "%s: references a file \"%s\" which has multiple matches",

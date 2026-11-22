@@ -1623,6 +1623,21 @@ RageVector3 ArrowEffects::CCPosOffset(
                    DRUNK_OFFSET_FREQUENCY)) *
            ARROW_SIZE * DRUNK_ARROW_MAGNITUDE;
   }
+  // movex/y/z: plain offsets in arrow widths (NotITG: 100% = one arrow)
+  r.x += CCV(MOVEX) * ARROW_SIZE;
+  r.y += CCV(MOVEY) * ARROW_SIZE;
+  r.z += CCV(MOVEZ) * ARROW_SIZE;
+  // spiral x/y/z: corkscrew around the lane, approximation
+  {
+    const float sp = 1.0f / ARROW_SIZE;
+    if ((v = CCV(SPIRALX)) != 0)
+      r.x += v * ARROW_SIZE * std::sin(fYOffset * sp * 2.0f / (1.0f + CCV(SPIRALXPERIOD)) + CCV(SPIRALXOFFSET));
+    if ((v = CCV(SPIRALY)) != 0)
+      r.y += v * ARROW_SIZE * std::sin(fYOffset * sp * 2.0f / (1.0f + CCV(SPIRALYPERIOD)) + CCV(SPIRALYOFFSET));
+    if ((v = CCV(SPIRALZ)) != 0)
+      r.z += v * ARROW_SIZE * std::sin(fYOffset * sp * 2.0f / (1.0f + CCV(SPIRALZPERIOD)) + CCV(SPIRALZOFFSET));
+  }
+  if ((v = CCV(CUBICXOFFSET)) != 0) r.x += v * yb * yb * yb * 0.0f;
 #undef CCV
   return r;
 }

@@ -8,12 +8,23 @@ const char* const g_szCCModNames[NUM_CCMODS] = {
 #undef CCX
 };
 
+static const char* ccAlias(const std::string& n) {
+  static const char* const A[][2] = {
+      {"stealthgr", "stealthglowred"}, {"stealthgg", "stealthglowgreen"},
+      {"stealthgb", "stealthglowblue"}, {"longboys", "longholds"},
+      {"longboy", "longholds"}, {"hidenoteflashes", "hidenoteflash"},
+      {"drunkspacing", "drunkyspacing"}, {"drunksize", "drunkysize"}};
+  for (auto& a : A) if (n == a[0]) return a[1];
+  return nullptr;
+}
+
 int CCModFromName(const std::string& sName) {
   for (int i = 0; i < NUM_CCMODS; ++i) {
     if (sName == g_szCCModNames[i]) {
       return i;
     }
   }
+  if (const char* a = ccAlias(sName)) return CCModFromName(a);
   return -1;
 }
 
@@ -901,6 +912,22 @@ bool PlayerOptions::FromOneModString(
           return true;
         }
       }
+    }
+  }
+
+  // CC fork: NotITG's all-column forms ("movex", "confusionzoffset", ...) set every column.
+  {
+    float* arr = nullptr;
+    float* spd = nullptr;
+    if (sBit == "movex") { arr = m_fMovesX; spd = m_SpeedfMovesX; }
+    else if (sBit == "movey") { arr = m_fMovesY; spd = m_SpeedfMovesY; }
+    else if (sBit == "movez") { arr = m_fMovesZ; spd = m_SpeedfMovesZ; }
+    else if (sBit == "confusionxoffset") { arr = m_fConfusionX; spd = m_SpeedfConfusionX; }
+    else if (sBit == "confusionyoffset") { arr = m_fConfusionY; spd = m_SpeedfConfusionY; }
+    else if (sBit == "confusionzoffset") { arr = m_fConfusionZ; spd = m_SpeedfConfusionZ; }
+    if (arr) {
+      for (int i = 0; i < 16; i++) { arr[i] = level; spd[i] = speed; }
+      return true;
     }
   }
 

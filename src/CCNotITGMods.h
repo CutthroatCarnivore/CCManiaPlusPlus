@@ -44,7 +44,76 @@
   X(STEALTHGLOWGREEN, "stealthglowgreen") \
   X(STEALTHGLOWBLUE, "stealthglowblue") \
   X(HOLDGIRTH, "holdgirth") \
-  X(HOLDTINY, "holdtiny")
+  X(HOLDTINY, "holdtiny") \
+  X(APPROACHTYPE, "approachtype") \
+  X(ARROWCULL, "arrowcull") \
+  X(ARROWPATHDRAWDISTANCE, "arrowpathdrawdistance") \
+  X(ARROWPATHDRAWDISTANCEBACK, "arrowpathdrawdistanceback") \
+  X(ARROWPATHDRAWSIZEFRONT, "arrowpathdrawsizefront") \
+  X(ARROWPATHGRAIN, "arrowpathgrain") \
+  X(ARROWPATHGRANULATE, "arrowpathgranulate") \
+  X(ARROWPATHSIZE, "arrowpathsize") \
+  X(ATTENUATEXOFFSET, "attenuatexoffset") \
+  X(BEATSIZE, "beatsize") \
+  X(CENTEREDPATH, "centeredpath") \
+  X(CONFUSIONZOFFSET, "confusionzoffset") \
+  X(CUBICXOFFSET, "cubicxoffset") \
+  X(CUBICZOFFSET, "cubiczoffset") \
+  X(DISABLEMINES, "disablemines") \
+  X(DRAWDISTANCE, "drawdistance") \
+  X(DRAWDISTANCEBACK, "drawdistanceback") \
+  X(DRAWDISTANCEFRONT, "drawdistancefront") \
+  X(DRAWSIZEFRONT, "drawsizefront") \
+  X(DRUNKSIZE, "drunksize") \
+  X(DRUNKSPACING, "drunkspacing") \
+  X(DRUNKYSIZE, "drunkysize") \
+  X(DRUNKYSPACING, "drunkyspacing") \
+  X(DRUNKZSIZE, "drunkzsize") \
+  X(DRUNKZSPACING, "drunkzspacing") \
+  X(GAYHOLDS, "gayholds") \
+  X(GLITCHYTAN, "glitchytan") \
+  X(GRAIN, "grain") \
+  X(HALGUN, "halgun") \
+  X(HIDEHOLDS, "hideholds") \
+  X(HOLDSTEALTH, "holdstealth") \
+  X(LONGBOY, "longboy") \
+  X(LONGBOYS, "longboys") \
+  X(LONGHOLDS, "longholds") \
+  X(MINESTEALTH, "minestealth") \
+  X(MOVEX, "movex") \
+  X(MOVEY, "movey") \
+  X(MOVEZ, "movez") \
+  X(PLANNEDOMSPEED, "plannedomspeed") \
+  X(RECEPTORZBUFFER, "receptorzbuffer") \
+  X(REVERSETYPE, "reversetype") \
+  X(SINCLIP, "sinclip") \
+  X(SPIRALHOLDS, "spiralholds") \
+  X(SPIRALX, "spiralx") \
+  X(SPIRALXOFFSET, "spiralxoffset") \
+  X(SPIRALXPERIOD, "spiralxperiod") \
+  X(SPIRALY, "spiraly") \
+  X(SPIRALYOFFSET, "spiralyoffset") \
+  X(SPIRALYPERIOD, "spiralyperiod") \
+  X(SPIRALZ, "spiralz") \
+  X(SPIRALZOFFSET, "spiralzoffset") \
+  X(SPIRALZPERIOD, "spiralzperiod") \
+  X(SPLINEXRESET, "splinexreset") \
+  X(SPLINEXTYPE, "splinextype") \
+  X(SPLINEYRESET, "splineyreset") \
+  X(SPLINEYTYPE, "splineytype") \
+  X(SPLINEZRESET, "splinezreset") \
+  X(STEALTHGB, "stealthgb") \
+  X(STEALTHGG, "stealthgg") \
+  X(STEALTHGR, "stealthgr") \
+  X(STRAIGHTHOLDS, "straightholds") \
+  X(TANBUMPYY, "tanbumpyy") \
+  X(TANDRUNKSIZE, "tandrunksize") \
+  X(TIMING, "timing") \
+  X(TIPSYSPACING, "tipsyspacing") \
+  X(UNBOUNDEDREVERSE, "unboundedreverse") \
+  X(WAVEOFFSET, "waveoffset") \
+  X(WIREFRAME, "wireframe") \
+  X(WIREFRAMEGIRTH, "wireframegirth")
 
 enum CCMod {
 #define CCX(e, n) CCMOD_##e,

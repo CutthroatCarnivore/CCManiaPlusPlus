@@ -1250,6 +1250,11 @@ void NoteDisplay::DrawHold(
     const TapNote& tn, const NoteFieldRenderArgs& field_args,
     const NoteColumnRenderArgs& column_args, int iRow, bool bIsBeingHeld,
     const HoldNoteResult& Result, bool bIsAddition, float fPercentFadeToFail) {
+  {  // CC fork: NotITG hideholds
+    const PlayerOptions& cc_po = m_pPlayerState->m_PlayerOptions.GetCurrent();
+    const int cc_c = (column_args.column >= 0 && column_args.column < CC_MAX_COLS) ? column_args.column : 0;
+    if (cc_po.m_fCC[CCMOD_HIDEHOLDS] + cc_po.m_fCCCol[CCMOD_HIDEHOLDS][cc_c] >= 0.5f) return;
+  }
   int iEndRow = iRow + tn.iDuration;
   float top_beat = NoteRowToVisibleBeat(m_pPlayerState, iRow);
   float bottom_beat = NoteRowToVisibleBeat(m_pPlayerState, iEndRow);
@@ -1748,7 +1753,9 @@ void NoteColumnRenderer::DrawPrimitives() {
   const PlayerOptions& cc_po = m_field_render_args->player_state->m_PlayerOptions.GetCurrent();
   const int cc_c = (m_column >= 0 && m_column < CC_MAX_COLS) ? m_column : 0;
   const bool cc_hide_mines =
-      cc_po.m_fCC[CCMOD_HIDEMINES] + cc_po.m_fCCCol[CCMOD_HIDEMINES][cc_c] >= 0.5f;
+      cc_po.m_fCC[CCMOD_HIDEMINES] + cc_po.m_fCCCol[CCMOD_HIDEMINES][cc_c] +
+      cc_po.m_fCC[CCMOD_DISABLEMINES] + cc_po.m_fCCCol[CCMOD_DISABLEMINES][cc_c] +
+      cc_po.m_fCC[CCMOD_MINESTEALTH] + cc_po.m_fCCCol[CCMOD_MINESTEALTH][cc_c] >= 0.5f;
   for (; begin != end; ++begin) {
     const TapNote& tn = begin->second;
     if (cc_hide_mines && tn.type == TapNoteType_Mine) {

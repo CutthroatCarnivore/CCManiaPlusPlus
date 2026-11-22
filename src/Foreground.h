@@ -20,6 +20,7 @@ class Foreground : public ActorFrame {
 
  protected:
   struct LoadedBGA {
+    bool m_bCCStarted = false;  // CC fork
     Actor* m_bga;
     float m_fStartBeat;
     float m_fStopBeat;

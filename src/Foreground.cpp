@@ -88,7 +88,10 @@ void Foreground::Update(float fDeltaTime) {
   for (unsigned i = 0; i < m_BGAnimations.size(); ++i) {
     LoadedBGA& bga = m_BGAnimations[i];
 
-    if (GAMESTATE->m_Position.m_fSongBeat < bga.m_fStartBeat) {
+    // CC fork: NotITG starts foreground modfiles as soon as gameplay loads,
+    // not at their FGCHANGES beat (Mirin must set up before beat 0).
+    if (!g_bCCNotITGColumns &&
+        GAMESTATE->m_Position.m_fSongBeat < bga.m_fStartBeat) {
       // The animation hasn't started yet.
       continue;
     }
@@ -100,9 +103,18 @@ void Foreground::Update(float fDeltaTime) {
     /* Update the actor even if we're about to hide it, so queued commands
      * are always run. */
     float lDeltaTime;
-    if (!bga.m_bga->GetVisible()) {
+    // CC fork: NotITG modfiles hide/unhide their own root, so "not visible"
+    // can't mean "not started yet" for them.
+    const bool bNeedStart = g_bCCNotITGColumns ? !bga.m_bCCStarted
+                                               : !bga.m_bga->GetVisible();
+    if (bNeedStart) {
+      bga.m_bCCStarted = true;
       bga.m_bga->SetVisible(true);
       bga.m_bga->PlayCommand("On");
+      // CC fork: NotITG follows On with ScreenReady (Mirin 4 starts there).
+      if (g_bCCNotITGColumns) {
+        bga.m_bga->PlayCommand("ScreenReady");
+      }
 
       const float fStartSecond =
           m_pSong->m_SongTiming.GetElapsedTimeFromBeat(bga.m_fStartBeat);
@@ -111,6 +123,9 @@ void Foreground::Update(float fDeltaTime) {
           m_pSong->m_SongTiming.GetBeatFromElapsedTime(fStopSecond);
 
       lDeltaTime = GAMESTATE->m_Position.m_fMusicSeconds - fStartSecond;
+      if (g_bCCNotITGColumns) {
+        lDeltaTime = 0;  // CC fork: started early, nothing to catch up on
+      }
     } else {
       lDeltaTime = GAMESTATE->m_Position.m_fMusicSeconds - m_fLastMusicSeconds;
     }

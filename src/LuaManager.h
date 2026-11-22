@@ -237,6 +237,10 @@ struct RegisterLuaFunction {
   static RegisterLuaFunction register##Fn(Fn);
 
 inline bool MyLua_checkboolean(lua_State* L, int numArg) {
+  // CC fork: NotITG/OpenITG Lua passes numbers for booleans (0 = false).
+  if (lua_type(L, numArg) == LUA_TNUMBER) {
+    return lua_tonumber(L, numArg) != 0;
+  }
   luaL_checktype(L, numArg, LUA_TBOOLEAN);
   return !!lua_toboolean(L, numArg);
 }

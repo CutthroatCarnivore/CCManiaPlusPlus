@@ -87,11 +87,19 @@ void ActorFrame::InitState() {
 }
 
 void ActorFrame::LoadFromNode(const XNode* pNode) {
-  if (AutoLoadChildren()) {
-    LoadChildrenFromNode(pNode);
+  // CC fork: OpenITG/NotITG run a frame's InitCommand BEFORE loading its
+  // children (Mirin 4 creates `xero` there); ITGmania runs it after.
+  if (pNode->GetAttr("_LegacyXml") != nullptr) {
+    Actor::LoadFromNode(pNode);
+    if (AutoLoadChildren()) {
+      LoadChildrenFromNode(pNode);
+    }
+  } else {
+    if (AutoLoadChildren()) {
+      LoadChildrenFromNode(pNode);
+    }
+    Actor::LoadFromNode(pNode);
   }
-
-  Actor::LoadFromNode(pNode);
 
   pNode->GetAttrValue("UpdateRate", m_fUpdateRate);
   pNode->GetAttrValue("FOV", m_fFOV);

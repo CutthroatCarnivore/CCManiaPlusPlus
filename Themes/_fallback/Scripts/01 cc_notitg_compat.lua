@@ -85,6 +85,12 @@ if Actor then
 	-- GetShader/SetShader/ClearShader are real now (C++ CCShader, CC fork).
 end
 
+-- NotITG Song shortcuts for TimingData lookups
+if Song then
+	Song.GetElapsedTimeFromBeat = function(self, b) return self:GetTimingData():GetElapsedTimeFromBeat(b) end
+	Song.GetBeatFromElapsedTime = function(self, t) return self:GetTimingData():GetBeatFromElapsedTime(t) end
+end
+
 if Player then
 	Player.IsAwake = function() return true end
 	Player.SetAwake = function(self) return self end
@@ -113,6 +119,21 @@ function CCRunFrameHooks(dt)
 end
 
 if Actor then
+	-- NotITG/OpenITG: hidden(0) means SHOW. In Lua 5.1 the number 0 is truthy,
+	-- so ITGmania's hidden(0) hid the actor -- breaking proxies, Mirin's update
+	-- loop and countless modfiles. Numbers follow C rules here: 0 = false.
+	local function cc_hidden(self, v)
+		local hide
+		if type(v) == "number" then hide = (v ~= 0)
+		elseif v == nil then hide = true
+		else hide = (v and true or false) end
+		return self:visible(not hide)
+	end
+	-- ITGmania copies base methods into every class table, so patch them all.
+	for _, cls in pairs(_G) do
+		if type(cls) == "table" and rawget(cls, "hidden") then cls.hidden = cc_hidden end
+	end
+	Actor.hidden = cc_hidden
 	-- NotITG/OpenITG: tween(time, "luaExpression()") evaluates the expression
 	-- every frame for `time` seconds (modfiles use it as their update loop).
 	local orig_tween = Actor.tween
@@ -128,7 +149,16 @@ if Actor then
 	end
 	-- NotITG: luaeffect("Name") runs NameCommand every frame until stopeffect.
 	Actor.luaeffect = function(self, cmdname)
-		CCAddFrameHook(function() self:playcommand(cmdname) end, math.huge, self)
+		-- NotITG doesn't run luaeffect on hidden actors (Mirin hides itself on
+		-- error and unhides when an update succeeds).
+		CCAddFrameHook(function()
+			if self:GetVisible() then
+				CCLuaEffectRuns = (CCLuaEffectRuns or 0) + 1
+				self:playcommand(cmdname)
+			else
+				CCLuaEffectSkips = (CCLuaEffectSkips or 0) + 1
+			end
+		end, math.huge, self)
 		return self
 	end
 	local orig_stopeffect = Actor.stopeffect

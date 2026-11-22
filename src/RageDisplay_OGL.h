@@ -57,6 +57,16 @@ class RageDisplay_Legacy : public RageDisplay {
   bool BeginFrame();
   void EndFrame();
   ActualVideoModeParams GetActualVideoModeParams() const;
+  // CC fork: NotITG-style actor shaders
+  uintptr_t CCCompileShader(
+      const std::string& sVertFile, const std::string& sFragFile) override;
+  void CCDeleteShader(uintptr_t h) override;
+  void CCSetActiveShader(uintptr_t h) override;
+  uintptr_t CCGetActiveShader() const override;
+  void CCSetUniform(uintptr_t h, const std::string& sName, int iCount,
+                    const float* pValues) override;
+  void CCSetUniformInt(uintptr_t h, const std::string& sName, int i) override;
+  void CCBindTextureUnit(int iUnit, uintptr_t iTexHandle) override;
   void SetBlendMode(BlendMode mode);
   bool SupportsTextureFormat(RagePixelFormat pixfmt, bool realtime = false);
   bool SupportsPerVertexMatrixScale();

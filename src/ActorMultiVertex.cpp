@@ -61,6 +61,15 @@ LuaXType(DrawMode);
 
 REGISTER_ACTOR_CLASS(ActorMultiVertex);
 
+// CC fork: NotITG "Polygon" actors are ActorMultiVertex here, with NotITG's
+// vertex API added below (SetVertexPosition etc., 0-based indices).
+struct CCRegisterPolygon {
+  CCRegisterPolygon() {
+    ActorUtil::Register("Polygon", CreateActor<ActorMultiVertex>);
+  }
+};
+static CCRegisterPolygon g_CCRegisterPolygon;
+
 ActorMultiVertex::ActorMultiVertex() {
   // Use blank texture by default.
   RageTextureID ID = TEXTUREMAN->GetDefaultTextureID();
@@ -624,6 +633,58 @@ int ActorMultiVertex::AMV_TweenState::GetSafeNumToDraw(
 /** @brief Allow Lua to have access to the ActorMultiVertex. */
 class LunaActorMultiVertex : public Luna<ActorMultiVertex> {
  public:
+  // CC fork: NotITG Polygon API ----------------------------------------
+  static RageSpriteVertex* CCVert(T* p, lua_State* L) {
+    const int i = IArg(1);
+    std::vector<RageSpriteVertex>& v = p->AMV_DestTweenState().vertices;
+    if (i < 0 || i >= static_cast<int>(v.size())) {
+      return nullptr;
+    }
+    RageSpriteVertex* pv = &v[i];
+    // NotITG vertices start white; AMV's start transparent black.
+    if (pv->c.r == 0 && pv->c.g == 0 && pv->c.b == 0 && pv->c.a == 0) {
+      pv->c = RageColor(1, 1, 1, 1);
+    }
+    return pv;
+  }
+  static int SetVertexPosition(T* p, lua_State* L) {
+    if (RageSpriteVertex* v = CCVert(p, L)) {
+      v->p = RageVector3(FArg(2), FArg(3), lua_isnoneornil(L, 4) ? 0.0f : FArg(4));
+    }
+    COMMON_RETURN_SELF;
+  }
+  static int SetVertexColor(T* p, lua_State* L) {
+    if (RageSpriteVertex* v = CCVert(p, L)) {
+      v->c = RageColor(FArg(2), FArg(3), FArg(4),
+                       lua_isnoneornil(L, 5) ? 1.0f : FArg(5));
+    }
+    COMMON_RETURN_SELF;
+  }
+  static int SetVertexTexCoord(T* p, lua_State* L) {
+    if (RageSpriteVertex* v = CCVert(p, L)) {
+      v->t = RageVector2(FArg(2), FArg(3));
+    }
+    COMMON_RETURN_SELF;
+  }
+  static int SetDrawMode(T* p, lua_State* L) {
+    std::string s = SArg(1);
+    MakeLower(s);
+    DrawMode dm = DrawMode_Triangles;
+    if (s == "quads") dm = DrawMode_Quads;
+    else if (s == "quadstrip") dm = DrawMode_QuadStrip;
+    else if (s == "fan" || s == "trianglefan") dm = DrawMode_Fan;
+    else if (s == "strip" || s == "trianglestrip") dm = DrawMode_Strip;
+    else if (s == "linestrip" || s == "lines" || s == "line" || s == "lineloop")
+      dm = DrawMode_LineStrip;
+    p->SetDrawState(dm, 0, -1);
+    COMMON_RETURN_SELF;
+  }
+  static int SetPolygonMode(T* p, lua_State* L) {
+    // TODO(CC): NotITG wireframe/fill switch; drawn filled for now.
+    COMMON_RETURN_SELF;
+  }
+  // ---------------------------------------------------------------------
+
   static int SetNumVertices(T* p, lua_State* L) {
     p->SetNumVertices(IArg(1));
     COMMON_RETURN_SELF;
@@ -1052,6 +1113,11 @@ class LunaActorMultiVertex : public Luna<ActorMultiVertex> {
 
   LunaActorMultiVertex() {
     ADD_METHOD(SetVertex);
+    ADD_METHOD(SetVertexPosition);  // CC fork (NotITG Polygon)
+    ADD_METHOD(SetVertexColor);
+    ADD_METHOD(SetVertexTexCoord);
+    ADD_METHOD(SetDrawMode);
+    ADD_METHOD(SetPolygonMode);
     ADD_METHOD(SetVertices);
 
     ADD_METHOD(SetEffectMode);

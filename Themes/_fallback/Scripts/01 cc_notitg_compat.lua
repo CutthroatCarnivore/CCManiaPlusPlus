@@ -82,10 +82,7 @@ if GameState then
 end
 
 if Actor then
-	-- Shader stub: modfiles call self:GetShader():uniform1f(...) etc.
-	Actor.GetShader = function(self) note("Actor", "GetShader"); return CCNull end
-	Actor.SetShader = function(self) note("Actor", "SetShader"); return self end
-	Actor.ClearShader = function(self) return self end
+	-- GetShader/SetShader/ClearShader are real now (C++ CCShader, CC fork).
 end
 
 if Player then

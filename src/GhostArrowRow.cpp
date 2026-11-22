@@ -104,7 +104,17 @@ void GhostArrowRow::DrawPrimitives() {
   }
 }
 
+// CC fork: NotITG hidenoteflash / hidenoteflashes hide the hit explosions.
+static bool CCHideNoteFlash(const PlayerState* ps, int iCol) {
+  const PlayerOptions& po = ps->m_PlayerOptions.GetCurrent();
+  const int c = (iCol >= 0 && iCol < CC_MAX_COLS) ? iCol : 0;
+  return po.m_fCC[CCMOD_HIDENOTEFLASH] + po.m_fCCCol[CCMOD_HIDENOTEFLASH][c] +
+             po.m_fCC[CCMOD_HIDENOTEFLASHES] +
+             po.m_fCCCol[CCMOD_HIDENOTEFLASHES][c] >= 0.5f;
+}
+
 void GhostArrowRow::DidTapNote(int iCol, TapNoteScore tns, bool bBright) {
+  if (CCHideNoteFlash(m_pPlayerState, iCol)) return;
   ASSERT_M(
       iCol >= 0 && iCol < (int)m_Ghost.size(),
       ssprintf(
@@ -131,6 +141,7 @@ void GhostArrowRow::DidTapNote(int iCol, TapNoteScore tns, bool bBright) {
 }
 
 void GhostArrowRow::DidHoldNote(int iCol, HoldNoteScore hns, bool bBright) {
+  if (CCHideNoteFlash(m_pPlayerState, iCol)) return;
   ASSERT(iCol >= 0 && iCol < (int)m_Ghost.size());
   Message msg("ColumnJudgment");
   msg.SetParam("HoldNoteScore", hns);

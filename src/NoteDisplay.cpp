@@ -981,8 +981,17 @@ void NoteDisplay::DrawHoldPart(
         break;
     }
 
-    const float fFrameWidthScale = ArrowEffects::GetFrameWidthScale(
+    float fFrameWidthScale = ArrowEffects::GetFrameWidthScale(
         m_pPlayerState, fYOffset, part_args.overlapped_time);
+    {  // CC fork: NotITG holdgirth (wider/thinner) and holdtiny (halving)
+      const PlayerOptions& cc_po = m_pPlayerState->m_PlayerOptions.GetCurrent();
+      const int cc_c = (column_args.column >= 0 && column_args.column < CC_MAX_COLS)
+                           ? column_args.column : 0;
+      const float girth = cc_po.m_fCC[CCMOD_HOLDGIRTH] + cc_po.m_fCCCol[CCMOD_HOLDGIRTH][cc_c];
+      const float htiny = cc_po.m_fCC[CCMOD_HOLDTINY] + cc_po.m_fCCCol[CCMOD_HOLDTINY][cc_c];
+      fFrameWidthScale *= std::max(0.0f, 1.0f + girth);
+      if (htiny != 0) fFrameWidthScale *= std::pow(0.5f, htiny);
+    }
     const float fScaledFrameWidth = render_width * fFrameWidthScale;
 
     // Can't use the same code as for taps because hold bodies can only rotate
@@ -1384,7 +1393,15 @@ void NoteDisplay::DrawActor(
   const RageColor diffuse = RageColor(
       column_args.diffuse.r * fColorScale, column_args.diffuse.g * fColorScale,
       column_args.diffuse.b * fColorScale, column_args.diffuse.a * fAlpha);
-  const RageColor glow = RageColor(1, 1, 1, fGlow);
+  // CC fork: NotITG stealthglowred/green/blue tint the stealth glow.
+  const PlayerOptions& cc_po = m_pPlayerState->m_PlayerOptions.GetCurrent();
+  const int cc_c = (column_args.column >= 0 && column_args.column < CC_MAX_COLS)
+                       ? column_args.column : 0;
+  const RageColor glow = RageColor(
+      cc_po.m_fCC[CCMOD_STEALTHGLOWRED] * cc_po.m_fCCCol[CCMOD_STEALTHGLOWRED][cc_c],
+      cc_po.m_fCC[CCMOD_STEALTHGLOWGREEN] * cc_po.m_fCCCol[CCMOD_STEALTHGLOWGREEN][cc_c],
+      cc_po.m_fCC[CCMOD_STEALTHGLOWBLUE] * cc_po.m_fCCCol[CCMOD_STEALTHGLOWBLUE][cc_c],
+      fGlow);
   // We can't actually use the glow color from the effect on the colum actor
   // because it's used by the stealth modifier. -Kyz
   /*
@@ -1727,8 +1744,16 @@ void NoteColumnRenderer::DrawPrimitives() {
   m_field_render_args->note_data->GetTapNoteRangeInclusive(
       m_column, m_field_render_args->first_row,
       m_field_render_args->last_row + 1, begin, end);
+  // CC fork: NotITG hidemines
+  const PlayerOptions& cc_po = m_field_render_args->player_state->m_PlayerOptions.GetCurrent();
+  const int cc_c = (m_column >= 0 && m_column < CC_MAX_COLS) ? m_column : 0;
+  const bool cc_hide_mines =
+      cc_po.m_fCC[CCMOD_HIDEMINES] + cc_po.m_fCCCol[CCMOD_HIDEMINES][cc_c] >= 0.5f;
   for (; begin != end; ++begin) {
     const TapNote& tn = begin->second;
+    if (cc_hide_mines && tn.type == TapNoteType_Mine) {
+      continue;
+    }
     switch (tn.type) {
       case TapNoteType_Empty:
         continue;

@@ -289,6 +289,18 @@ class RageDisplay {
   virtual int GetMaxTextureSize() const = 0;
   virtual void SetTextureFiltering(TextureUnit, bool) = 0;
   virtual void SetEffectMode(EffectMode) {}
+  // CC fork: NotITG-style actor shaders (no-ops on renderers without GLSL).
+  virtual uintptr_t CCCompileShader(
+      const std::string& sVertFile, const std::string& sFragFile) {
+    return 0;
+  }
+  virtual void CCDeleteShader(uintptr_t) {}
+  virtual void CCSetActiveShader(uintptr_t) {}
+  virtual uintptr_t CCGetActiveShader() const { return 0; }
+  virtual void CCSetUniform(
+      uintptr_t, const std::string&, int iCount, const float* pValues) {}
+  virtual void CCSetUniformInt(uintptr_t, const std::string&, int) {}
+  virtual void CCBindTextureUnit(int iUnit, uintptr_t iTexHandle) {}
   virtual bool IsEffectModeSupported(EffectMode effect) {
     return effect == EffectMode_Normal;
   }

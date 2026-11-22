@@ -1,4 +1,5 @@
 #include "Actor.h"
+#include "CCShader.h"
 
 #include <algorithm>
 #include <cmath>
@@ -189,6 +190,7 @@ Actor::Actor(const Actor& cpy) : MessageSubscriber(cpy) {
   CPY(alias_);
   CPY(m_pParent);
   CPY(m_FakeParent);
+  CPY(m_pCCShader);  // CC fork
   CPY(m_pLuaInstance);
 
   m_WrapperStates.resize(cpy.m_WrapperStates.size());
@@ -349,6 +351,13 @@ bool Actor::IsAlias(const std::string& name) {
  * initialization (eg. ActorFrame loading children).  However, it
  * also loads input variables, which should happen first.  The
  * former is more important. */
+CCShader* Actor::GetCCShader(bool bCreate) {
+  if (m_pCCShader == nullptr && bCreate) {
+    m_pCCShader = CCShader::Create();
+  }
+  return m_pCCShader;
+}
+
 void Actor::LoadFromNode(const XNode* pNode) {
   Lua* L = LUA->Get();
   FOREACH_CONST_Attr(pNode, pAttr) {
@@ -361,6 +370,21 @@ void Actor::LoadFromNode(const XNode* pNode) {
       pRef->SetFromStack(L);
       std::string sCmdName = Left(sKeyName, sKeyName.size() - 7);
       AddCommand(sCmdName, apActorCommands(pRef));
+    } else if (sKeyName == "Frag" || sKeyName == "Vert" ||
+               sKeyName == "Shader") {
+      // CC fork: NotITG shader attributes, relative to the XML file.
+      std::string sPath = pValue->GetValue<std::string>();
+      if (!sPath.empty()) {
+        if (sPath[0] != '/') {
+          sPath = Dirname(ActorUtil::GetSourcePath(pNode)) + sPath;
+        }
+        CollapsePath(sPath);
+        if (sKeyName == "Vert") {
+          GetCCShader(true)->SetFiles(sPath, "");
+        } else {
+          GetCCShader(true)->SetFiles("", sPath);
+        }
+      }
     } else if (sKeyName == "Name") {
       SetName(pValue->GetValue<std::string>());
     } else if (sKeyName == "BaseRotationX") {
@@ -460,7 +484,12 @@ void Actor::Draw() {
     ASSERT(m_pTempState != nullptr);
     if (PartiallyOpaque()) {
       this->BeginDraw();
+      // CC fork: NotITG-style actor shader
+      CCShader* cc_shader =
+          (m_pCCShader && m_pCCShader->IsUsable()) ? m_pCCShader : nullptr;
+      if (cc_shader) cc_shader->Begin(this->CCShaderTexture());
       this->DrawPrimitives();
+      if (cc_shader) cc_shader->End();
       this->EndDraw();
     }
     this->PostDraw();
@@ -2388,6 +2417,23 @@ class LunaActor : public Luna<Actor> {
     }
     return 1;
   }
+  // CC fork: NotITG shader API
+  static int GetShader(T* p, lua_State* L) {
+    p->GetCCShader(true)->PushSelf(L);
+    return 1;
+  }
+  static int SetShader(T* p, lua_State* L) {
+    if (lua_isnoneornil(L, 1)) {
+      p->SetCCShader(nullptr);
+    } else {
+      p->SetCCShader(Luna<CCShader>::check(L, 1));
+    }
+    COMMON_RETURN_SELF;
+  }
+  static int ClearShader(T* p, lua_State* L) {
+    p->SetCCShader(nullptr);
+    COMMON_RETURN_SELF;
+  }
   static int SetFakeParent(T* p, lua_State* L) {
     if (lua_isnoneornil(L, 1)) {
       p->SetFakeParent(nullptr);
@@ -2607,6 +2653,9 @@ class LunaActor : public Luna<Actor> {
     ADD_METHOD(GetParent);
     ADD_METHOD(GetFakeParent);
     ADD_METHOD(SetFakeParent);
+    ADD_METHOD(GetShader);  // CC fork
+    ADD_METHOD(SetShader);
+    ADD_METHOD(ClearShader);
     ADD_METHOD(AddWrapperState);
     ADD_METHOD(RemoveWrapperState);
     ADD_METHOD(GetNumWrapperStates);

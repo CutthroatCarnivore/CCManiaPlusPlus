@@ -104,6 +104,9 @@ LuaDeclareType( EffectAction );
 */
 
 /** @brief Base class for all objects that appear on the screen. */
+class CCShader;
+class RageTexture;
+
 class Actor : public MessageSubscriber {
  public:
   /** @brief Set up the Actor with its initial settings. */
@@ -291,6 +294,11 @@ class Actor : public MessageSubscriber {
    *
    * Derivative classes should override this function. */
   virtual void DrawPrimitives() {};
+  // CC fork: NotITG-style shader. GetCCShader(true) creates one on demand.
+  CCShader* GetCCShader(bool bCreate);
+  void SetCCShader(CCShader* p) { m_pCCShader = p; }
+  // The texture a shader's textureSize/imageSize/sampler0 refer to.
+  virtual RageTexture* CCShaderTexture() { return nullptr; }
   /** @brief Pop the transform from the world matrix stack. */
   virtual void EndDraw();
 
@@ -741,6 +749,7 @@ class Actor : public MessageSubscriber {
   // state without making that actor the parent.  It's like having multiple
   // parents. -Kyz
   Actor* m_FakeParent;
+  CCShader* m_pCCShader = nullptr;  // CC fork
   // WrapperStates provides a way to wrap the actor inside ActorFrames,
   // applicable to any actor, not just ones the theme creates.
   std::vector<Actor*> m_WrapperStates;

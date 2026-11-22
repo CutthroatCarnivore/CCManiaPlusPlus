@@ -36,6 +36,7 @@ class Sprite : public Actor {
 
   virtual bool EarlyAbortDraw() const override;
   virtual void DrawPrimitives() override;
+  RageTexture* CCShaderTexture() override { return m_pTexture; }  // CC fork
   virtual void Update(float fDeltaTime) override;
 
   void

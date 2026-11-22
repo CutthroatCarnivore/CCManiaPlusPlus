@@ -1778,6 +1778,148 @@ void RageDisplay_Legacy::SetTextureFiltering(TextureUnit tu, bool b) {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, iMinFilter);
 }
 
+// CC fork: NotITG-style actor shaders ----------------------------------------
+static GLhandleARB g_hCCActiveShader = 0;
+
+static const char* g_szCCDefaultVert =
+    "#version 120\n"
+    "varying vec3 position;\n"
+    "varying vec3 normal;\n"
+    "varying vec4 color;\n"
+    "varying vec2 textureCoord;\n"
+    "varying vec2 imageCoord;\n"
+    "uniform vec2 textureSize;\n"
+    "uniform vec2 imageSize;\n"
+    "void main() {\n"
+    "  gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;\n"
+    "  position = gl_Vertex.xyz;\n"
+    "  normal = gl_Normal;\n"
+    "  color = gl_Color;\n"
+    "  textureCoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;\n"
+    "  imageCoord = textureCoord * textureSize / imageSize;\n"
+    "  gl_TexCoord[0] = gl_TextureMatrix[0] * gl_MultiTexCoord0;\n"
+    "  gl_FrontColor = gl_Color;\n"
+    "}\n";
+
+static const char* g_szCCDefaultFrag =
+    "#version 120\n"
+    "uniform sampler2D sampler0;\n"
+    "varying vec4 color;\n"
+    "varying vec2 textureCoord;\n"
+    "void main() { gl_FragColor = texture2D(sampler0, textureCoord) * color; }\n";
+
+static GLhandleARB CCCompileFromSource(
+    GLenum type, const std::string& sSource, const std::string& sName) {
+  GLhandleARB h = glCreateShaderObjectARB(type);
+  const GLcharARB* p = sSource.c_str();
+  GLint len = static_cast<GLint>(sSource.size());
+  glShaderSourceARB(h, 1, &p, &len);
+  glCompileShaderARB(h);
+  GLint ok = GL_FALSE;
+  glGetObjectParameterivARB(h, GL_OBJECT_COMPILE_STATUS_ARB, &ok);
+  if (!ok) {
+    LOG->Warn("CC shader: error compiling %s:\n%s", sName.c_str(),
+              GetInfoLog(h).c_str());
+    glDeleteObjectARB(h);
+    return 0;
+  }
+  return h;
+}
+
+static bool CCReadFile(const std::string& sPath, std::string& sOut) {
+  RageFile f;
+  if (!f.Open(sPath)) {
+    LOG->Warn("CC shader: can't open %s", sPath.c_str());
+    return false;
+  }
+  sOut.clear();
+  std::string sBuf;
+  if (f.Read(sBuf, f.GetFileSize()) == -1) return false;
+  sOut = sBuf;
+  return true;
+}
+
+uintptr_t RageDisplay_Legacy::CCCompileShader(
+    const std::string& sVertFile, const std::string& sFragFile) {
+  if (!GLEW_ARB_shader_objects || !GLEW_ARB_shading_language_100 ||
+      !glewIsSupported("GL_VERSION_2_0")) {
+    return 0;
+  }
+  std::string sVert = g_szCCDefaultVert, sFrag = g_szCCDefaultFrag;
+  if (!sVertFile.empty() && !CCReadFile(sVertFile, sVert)) return 0;
+  if (!sFragFile.empty() && !CCReadFile(sFragFile, sFrag)) return 0;
+  GLhandleARB hv = CCCompileFromSource(GL_VERTEX_SHADER_ARB, sVert,
+                                       sVertFile.empty() ? "(default vert)" : sVertFile);
+  GLhandleARB hf = CCCompileFromSource(GL_FRAGMENT_SHADER_ARB, sFrag,
+                                       sFragFile.empty() ? "(default frag)" : sFragFile);
+  if (hv == 0 || hf == 0) {
+    if (hv) glDeleteObjectARB(hv);
+    if (hf) glDeleteObjectARB(hf);
+    return 0;
+  }
+  GLhandleARB prog = glCreateProgramObjectARB();
+  glAttachObjectARB(prog, hv);
+  glAttachObjectARB(prog, hf);
+  glDeleteObjectARB(hv);
+  glDeleteObjectARB(hf);
+  glLinkProgramARB(prog);
+  GLint ok = GL_FALSE;
+  glGetObjectParameterivARB(prog, GL_OBJECT_LINK_STATUS_ARB, &ok);
+  if (!ok) {
+    LOG->Warn("CC shader: error linking %s / %s: %s", sVertFile.c_str(),
+              sFragFile.c_str(), GetInfoLog(prog).c_str());
+    glDeleteObjectARB(prog);
+    return 0;
+  }
+  LOG->Trace("CC shader: compiled %s / %s", sVertFile.c_str(), sFragFile.c_str());
+  return (uintptr_t)(prog);
+}
+
+void RageDisplay_Legacy::CCDeleteShader(uintptr_t h) {
+  if (h != 0) {
+    if (g_hCCActiveShader == (GLhandleARB)(h)) {
+      CCSetActiveShader(0);
+    }
+    glDeleteObjectARB((GLhandleARB)(h));
+  }
+}
+
+void RageDisplay_Legacy::CCSetActiveShader(uintptr_t h) {
+  g_hCCActiveShader = (GLhandleARB)(h);
+  if (GLEW_ARB_shader_objects) {
+    glUseProgramObjectARB(g_hCCActiveShader);
+  }
+}
+
+uintptr_t RageDisplay_Legacy::CCGetActiveShader() const {
+  return (uintptr_t)(g_hCCActiveShader);
+}
+
+void RageDisplay_Legacy::CCSetUniform(
+    uintptr_t h, const std::string& sName, int iCount, const float* v) {
+  const GLint loc = glGetUniformLocationARB((GLhandleARB)(h), sName.c_str());
+  if (loc < 0) return;
+  switch (iCount) {
+    case 1: glUniform1fARB(loc, v[0]); break;
+    case 2: glUniform2fARB(loc, v[0], v[1]); break;
+    case 3: glUniform3fARB(loc, v[0], v[1], v[2]); break;
+    case 4: glUniform4fARB(loc, v[0], v[1], v[2], v[3]); break;
+    default: break;
+  }
+}
+
+void RageDisplay_Legacy::CCSetUniformInt(uintptr_t h, const std::string& sName, int i) {
+  const GLint loc = glGetUniformLocationARB((GLhandleARB)(h), sName.c_str());
+  if (loc >= 0) glUniform1iARB(loc, i);
+}
+
+void RageDisplay_Legacy::CCBindTextureUnit(int iUnit, uintptr_t iTexHandle) {
+  if (!GLEW_ARB_multitexture) return;
+  glActiveTextureARB(GL_TEXTURE0_ARB + iUnit);
+  glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(iTexHandle));
+  glActiveTextureARB(GL_TEXTURE0_ARB);
+}
+
 void RageDisplay_Legacy::SetEffectMode(EffectMode effect) {
   if (!GLEW_ARB_fragment_program || !GLEW_ARB_shading_language_100 ||
       !GLEW_ARB_shader_objects) {
@@ -1787,7 +1929,7 @@ void RageDisplay_Legacy::SetEffectMode(EffectMode effect) {
   GLhandleARB hShader = 0;
   switch (effect) {
     case EffectMode_Normal:
-      hShader = 0;
+      hShader = g_hCCActiveShader;  // CC fork: keep an actor shader bound
       break;
     case EffectMode_Unpremultiply:
       hShader = g_bUnpremultiplyShader;

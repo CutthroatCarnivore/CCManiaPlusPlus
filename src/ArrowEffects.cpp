@@ -591,6 +591,12 @@ float ArrowEffects::GetYOffset(
                     GAMESTATE->m_SongOptions.GetCurrent().m_fMusicRate);
   }
 
+  {  // CC fork: NotITG scrollspeedmult (100% = normal), global x column
+    const int c = (iCol >= 0 && iCol < CC_MAX_COLS) ? iCol : 0;
+    fScrollSpeed *= curr_options->m_fCC[CCMOD_SCROLLSPEEDMULT] *
+                    curr_options->m_fCCCol[CCMOD_SCROLLSPEEDMULT][c];
+  }
+
   // don't mess with the arrows after they've crossed 0
   if (fYOffset < 0) {
     return fYOffset * fScrollSpeed;
@@ -1589,6 +1595,36 @@ float ArrowEffects::GetZoom(
     fZoom *= fTinyPercent;
   }
   return fZoom;
+}
+
+RageVector3 ArrowEffects::CCPosOffset(
+    const PlayerState* pPlayerState, int iCol, float fYOffset) {
+  const PlayerOptions& po = pPlayerState->m_PlayerOptions.GetCurrent();
+  const int c = (iCol >= 0 && iCol < CC_MAX_COLS) ? iCol : 0;
+#define CCV(m) (po.m_fCC[CCMOD_##m] + po.m_fCCCol[CCMOD_##m][c])
+  RageVector3 r(0, 0, 0);
+  float v;
+  if ((v = CCV(BUMPYY)) != 0) {
+    r.y += v * 40 * std::sin(CalculateBumpyAngle(
+                        fYOffset, CCV(BUMPYYOFFSET), CCV(BUMPYYPERIOD)));
+  }
+  if ((v = CCV(BUMPYZ)) != 0) {
+    r.z += v * 40 * std::sin(CalculateBumpyAngle(
+                        fYOffset, CCV(BUMPYZOFFSET), CCV(BUMPYZPERIOD)));
+  }
+  const float yb = fYOffset / ARROW_SIZE;
+  if ((v = CCV(CUBICX)) != 0) r.x += v * yb * yb * yb;
+  if ((v = CCV(CUBICY)) != 0) r.y += v * yb * yb * yb;
+  if ((v = CCV(CUBICZ)) != 0) r.z += v * yb * yb * yb;
+  if ((v = CCV(DRUNKY)) != 0) {
+    r.y += v * std::cos(CalculateDrunkAngle(
+                   CCV(DRUNKYSPEED), iCol, CCV(DRUNKYOFFSET),
+                   DRUNK_COLUMN_FREQUENCY, fYOffset, CCV(DRUNKYPERIOD),
+                   DRUNK_OFFSET_FREQUENCY)) *
+           ARROW_SIZE * DRUNK_ARROW_MAGNITUDE;
+  }
+#undef CCV
+  return r;
 }
 
 RageVector3 ArrowEffects::CCZoomAxes(

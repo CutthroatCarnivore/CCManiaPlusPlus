@@ -22,7 +22,29 @@
   X(ZOOM, "zoom")         \
   X(ZOOMX, "zoomx")       \
   X(ZOOMY, "zoomy")       \
-  X(ZOOMZ, "zoomz")
+  X(ZOOMZ, "zoomz")       \
+  X(HIDENOTEFLASH, "hidenoteflash") \
+  X(HIDENOTEFLASHES, "hidenoteflashes") \
+  X(BUMPYY, "bumpyy")     \
+  X(BUMPYYOFFSET, "bumpyyoffset") \
+  X(BUMPYYPERIOD, "bumpyyperiod") \
+  X(BUMPYZ, "bumpyz")     \
+  X(BUMPYZOFFSET, "bumpyzoffset") \
+  X(BUMPYZPERIOD, "bumpyzperiod") \
+  X(CUBICX, "cubicx")     \
+  X(CUBICY, "cubicy")     \
+  X(CUBICZ, "cubicz")     \
+  X(DRUNKY, "drunky")     \
+  X(DRUNKYOFFSET, "drunkyoffset") \
+  X(DRUNKYPERIOD, "drunkyperiod") \
+  X(DRUNKYSPEED, "drunkyspeed") \
+  X(HIDEMINES, "hidemines") \
+  X(SCROLLSPEEDMULT, "scrollspeedmult") \
+  X(STEALTHGLOWRED, "stealthglowred") \
+  X(STEALTHGLOWGREEN, "stealthglowgreen") \
+  X(STEALTHGLOWBLUE, "stealthglowblue") \
+  X(HOLDGIRTH, "holdgirth") \
+  X(HOLDTINY, "holdtiny")
 
 enum CCMod {
 #define CCX(e, n) CCMOD_##e,
@@ -37,7 +59,9 @@ extern const char* const g_szCCModNames[NUM_CCMODS];
 // Value a mod has when "off". 0 for most; 1 (=100%) for NotITG's zoom mods.
 inline float CCModNeutral(int m) {
   return (m == CCMOD_ZOOM || m == CCMOD_ZOOMX || m == CCMOD_ZOOMY ||
-          m == CCMOD_ZOOMZ) ? 1.0f : 0.0f;
+          m == CCMOD_ZOOMZ || m == CCMOD_SCROLLSPEEDMULT ||
+          m == CCMOD_STEALTHGLOWRED || m == CCMOD_STEALTHGLOWGREEN ||
+          m == CCMOD_STEALTHGLOWBLUE) ? 1.0f : 0.0f;
 }
 // Returns the CCMod index for a lowercase mod name, or -1.
 int CCModFromName(const std::string& sName);

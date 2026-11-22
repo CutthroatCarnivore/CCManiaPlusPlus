@@ -42,7 +42,15 @@ class ArrowEffects {
         GetMoveY(col) +
         GetYPos(player_state, col, y_offset, y_reverse_offset, with_reverse);
     ret.z = GetMoveZ(col) + GetZPos(player_state, col, y_offset);
+    const RageVector3 cc = CCPosOffset(player_state, col, y_offset);  // CC fork
+    ret.x += cc.x;
+    ret.y += cc.y;
+    ret.z += cc.z;
   }
+  // CC fork: NotITG position mods (bumpyy/z, cubicx/y/z, drunky).
+  // Approximations of NotITG's math; tune against NotITG side by side.
+  static RageVector3 CCPosOffset(
+      const PlayerState* player_state, int col, float y_offset);
 
   /**
    * @brief Retrieve the actual display position.

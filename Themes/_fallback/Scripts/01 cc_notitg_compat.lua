@@ -167,7 +167,25 @@ end
 function CCKillFrameHooks(owner)
 	for _, h in ipairs(CCFrameHooks) do if h.owner == owner then h.dead = true end end
 end
+-- The hooks run from the screen system layer, which outlives every screen.
+-- Modfile hooks belong to the song: drop them all once gameplay hands off
+-- to a non-gameplay screen (results, back to song select), so they don't
+-- keep running modfile code against destroyed actors.
+local cc_top_screen, cc_top_was_gameplay = nil, false
+local function CCDropHooksAfterGameplay()
+	local top = SCREENMAN and SCREENMAN:GetTopScreen()
+	if top == cc_top_screen then return end
+	local leaving_gameplay = cc_top_was_gameplay
+	cc_top_screen = top
+	cc_top_was_gameplay = top ~= nil and top.GetScreenType ~= nil
+		and top:GetScreenType() == "ScreenType_Gameplay"
+	if leaving_gameplay and not cc_top_was_gameplay and #CCFrameHooks > 0 then
+		Trace("CC-NOTITG dropped " .. #CCFrameHooks .. " frame hooks after gameplay")
+		CCFrameHooks = {}
+	end
+end
 function CCRunFrameHooks(dt)
+	CCDropHooksAfterGameplay()
 	for i = #CCFrameHooks, 1, -1 do
 		local h = CCFrameHooks[i]
 		if h.dead then

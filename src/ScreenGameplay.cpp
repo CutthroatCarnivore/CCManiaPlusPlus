@@ -2967,6 +2967,11 @@ void ScreenGameplay::SongFinished() {
 }
 
 void ScreenGameplay::StageFinished(bool bBackedOut) {
+  // CC fork: drop the hidden NotITG player before scores are finalized and
+  // committed. Otherwise it saves its own machine high score (a duplicate of
+  // the real player's), adds its play to the profile stats, and counts toward
+  // AllFailed so a failed stage doesn't end the game outside event mode.
+  CCRemoveSleepingPlayer();
   if (GAMESTATE->IsCourseMode() && GAMESTATE->m_PlayMode != PLAY_MODE_ENDLESS) {
     LOG->Trace(
         "Stage finished at index %i/%i", GAMESTATE->GetCourseSongIndex(),

@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include "Dialog.h"
 
 #include <string>
@@ -66,7 +67,14 @@ static DialogDriver_Null g_NullDriver;
 static bool g_bWindowed =
     true;  // Start out true so that we'll show errors before DISPLAY is init'd.
 
-static bool DialogsEnabled() { return g_bWindowed; }
+// CC fork: a modal dialog freezes the game on a stuck window (missing metric,
+// missing element, script error...). Never show them: the message is logged
+// ("Dialog: ...") and the null driver's safe default is taken (ignore/ok).
+// Set CC_DIALOGS=1 to get the stock dialogs back.
+static bool DialogsEnabled() {
+  static const bool bCCDialogs = getenv("CC_DIALOGS") != nullptr;
+  return g_bWindowed && bCCDialogs;
+}
 
 void Dialog::Init() {
   if (g_pImpl != nullptr) {

@@ -16,15 +16,13 @@ return Def.ActorFrame{
     if not song then Trace("CCTEST: song not found: "..want) return end
     Trace("CCTEST: found "..song:GetSongDir())
     GAMESTATE:JoinPlayer(PLAYER_1)
-    GAMESTATE:JoinPlayer(PLAYER_2)
     GAMESTATE:SetCurrentPlayMode("PlayMode_Regular")
-    GAMESTATE:SetCurrentStyle("versus")
+    GAMESTATE:SetCurrentStyle("single")
     GAMESTATE:SetCurrentSong(song)
     local steps = song:GetStepsByStepsType("StepsType_Dance_Single")
     local pick = steps[#steps]
     for _, st in ipairs(steps) do if st:GetDifficulty() == "Difficulty_Hard" then pick = st end end
     GAMESTATE:SetCurrentSteps(PLAYER_1, pick)
-    GAMESTATE:SetCurrentSteps(PLAYER_2, pick)
     Trace("CCTEST: steps "..tostring(pick and pick:GetDifficulty()))
     SCREENMAN:SetNewScreen("ScreenGameplay")
   end

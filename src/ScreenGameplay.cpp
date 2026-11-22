@@ -393,6 +393,90 @@ ScreenGameplay::ScreenGameplay() {
   GAMESTATE->m_AdjustTokensBySongCostForFinalStageCheck = false;
 }
 
+// CC fork ---------------------------------------------------------------------
+// NotITG always has two Player actors; with one human the other is "asleep".
+// Modfiles proxy, hide and mod that second field, so 1-player charts written
+// for NotITG need it. We join a hidden autoplay P2 with the same chart for the
+// duration of gameplay and unjoin it (dropping its stats) before results.
+static bool CCSongIsNotITG(const Song* pSong) {
+  if (pSong == nullptr) return false;
+  std::vector<BackgroundChange> v = pSong->GetForegroundChanges();
+  const std::vector<BackgroundChange>& bg =
+      const_cast<Song*>(pSong)->GetBackgroundChanges(BACKGROUND_LAYER_1);
+  v.insert(v.end(), bg.begin(), bg.end());
+  for (const BackgroundChange& c : v) {
+    std::string f = c.m_def.m_sFile1;
+    std::string lf = f;
+    MakeLower(lf);
+    if (EndsWith(lf, ".xml") ||
+        DoesFileExist(pSong->GetSongDir() + f + "/default.xml")) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static PlayerNumber g_CCSleepingPN = PLAYER_INVALID;
+static int LuaCCGetSleepingPlayer(lua_State* L) {
+  if (g_CCSleepingPN == PLAYER_INVALID) {
+    lua_pushnil(L);
+  } else {
+    lua_pushnumber(L, g_CCSleepingPN + 1);
+  }
+  return 1;
+}
+
+void ScreenGameplay::CCAddSleepingPlayer() {
+  if (GAMESTATE->IsCourseMode() || !CCSongIsNotITG(GAMESTATE->m_pCurSong)) {
+    return;
+  }
+  if (GAMESTATE->GetNumSidesJoined() != 1) {
+    return;
+  }
+  const PlayerNumber master = GAMESTATE->GetMasterPlayerNumber();
+  const PlayerNumber other = (master == PLAYER_1) ? PLAYER_2 : PLAYER_1;
+  const Style* cur = GAMESTATE->GetCurrentStyle(master);
+  Steps* steps = GAMESTATE->m_pCurSteps[master].Get();
+  if (cur == nullptr || steps == nullptr ||
+      cur->m_StyleType != StyleType_OnePlayerOneSide) {
+    return;
+  }
+  const Style* versus = GAMEMAN->GetFirstCompatibleStyle(
+      GAMESTATE->GetCurrentGame(), 2, cur->m_StepsType);
+  if (versus == nullptr) {
+    return;
+  }
+  m_pCCPrevStyle = cur;
+  GAMESTATE->JoinPlayer(other);
+  if (!GAMESTATE->IsPlayerEnabled(other)) {
+    m_pCCPrevStyle = nullptr;
+    return;
+  }
+  GAMESTATE->SetCurrentStyle(versus, PLAYER_INVALID);
+  GAMESTATE->m_pCurSteps[other].Set(steps);
+  PlayerState* ps = GAMESTATE->m_pPlayerState[other];
+  ps->m_PlayerOptions = GAMESTATE->m_pPlayerState[master]->m_PlayerOptions;
+  ps->m_PlayerController = PC_AUTOPLAY;
+  m_CCSleepingPN = other;
+  g_CCSleepingPN = other;
+  LOG->Trace("CC fork: added sleeping %s for NotITG modfile",
+             PlayerNumberToString(other).c_str());
+}
+
+void ScreenGameplay::CCRemoveSleepingPlayer() {
+  if (m_CCSleepingPN == PLAYER_INVALID) {
+    return;
+  }
+  const PlayerNumber pn = m_CCSleepingPN;
+  m_CCSleepingPN = PLAYER_INVALID;
+  g_CCSleepingPN = PLAYER_INVALID;
+  GAMESTATE->UnjoinPlayer(pn);
+  if (m_pCCPrevStyle != nullptr) {
+    GAMESTATE->SetCurrentStyle(m_pCCPrevStyle, PLAYER_INVALID);
+  }
+  m_pCCPrevStyle = nullptr;
+}
+
 void ScreenGameplay::Init() {
   SubscribeToMessage("Judgment");
 
@@ -443,6 +527,7 @@ void ScreenGameplay::Init() {
 
   ScreenWithMenuElements::Init();
 
+  CCAddSleepingPlayer();  // CC fork
   this->FillPlayerInfo(m_vPlayerInfo);
 
   const Style* pMasterStyle =
@@ -603,6 +688,9 @@ void ScreenGameplay::Init() {
   FOREACH_EnabledPlayerInfo(m_vPlayerInfo, pi) {
     std::string sName = ssprintf("Player%s", pi->GetName().c_str());
     pi->m_pPlayer->SetName(sName);
+    if (pi->m_pn == m_CCSleepingPN) {
+      pi->m_pPlayer->SetVisible(false);  // CC fork: asleep until woken
+    }
 
     const Style* style = GAMESTATE->GetCurrentStyle(pi->m_pn);
     float style_width = style->GetWidth(pi->m_pn);
@@ -1079,6 +1167,7 @@ void ScreenGameplay::InitSongQueues() {
 }
 
 ScreenGameplay::~ScreenGameplay() {
+  CCRemoveSleepingPlayer();  // CC fork
   GAMESTATE->m_AdjustTokensBySongCostForFinalStageCheck = true;
   if (this->IsFirstUpdate()) {
     /* We never received any updates. That means we were deleted without being
@@ -2888,6 +2977,10 @@ void ScreenGameplay::HandleScreenMessage(const ScreenMessage SM) {
   CHECKPOINT_M(ssprintf(
       "HandleScreenMessage(%s)",
       ScreenMessageHelpers::ScreenMessageToString(SM).c_str()));
+  // CC fork: drop the sleeping player before results/back-out screens load.
+  if (SM == SM_GoToNextScreen || SM == SM_GoToPrevScreen) {
+    CCRemoveSleepingPlayer();
+  }
   if (SM == SM_DoneFadingIn) {
     // If the ready animation is zero length, then playing the sound will
     // make it overlap with the go sound.
@@ -3561,3 +3654,10 @@ LUA_REGISTER_CLASS(PlayerInfo)
  * OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
+
+// CC fork: CCSleepingPlayer() -> 1 or 2 (NotITG numbering) or nil.
+void LuaFunc_Register_CCSleepingPlayer(lua_State* L);
+void LuaFunc_Register_CCSleepingPlayer(lua_State* L) {
+  lua_register(L, "CCSleepingPlayer", LuaCCGetSleepingPlayer);
+}
+REGISTER_WITH_LUA_FUNCTION(LuaFunc_Register_CCSleepingPlayer);

@@ -1,4 +1,5 @@
 #include "Foreground.h"
+#include <cstdlib>
 
 #include <algorithm>
 #include <string>
@@ -90,7 +91,7 @@ void Foreground::Update(float fDeltaTime) {
 
     // CC fork: NotITG starts foreground modfiles as soon as gameplay loads,
     // not at their FGCHANGES beat (Mirin must set up before beat 0).
-    if (!g_bCCNotITGColumns &&
+    if ((!g_bCCNotITGColumns || getenv("CC_OLD_START") != nullptr) &&
         GAMESTATE->m_Position.m_fSongBeat < bga.m_fStartBeat) {
       // The animation hasn't started yet.
       continue;

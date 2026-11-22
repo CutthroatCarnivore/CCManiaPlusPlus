@@ -1,4 +1,5 @@
 #include "ActorFrame.h"
+#include <cstdlib>
 
 #include <algorithm>
 #include <cstdint>
@@ -89,7 +90,7 @@ void ActorFrame::InitState() {
 void ActorFrame::LoadFromNode(const XNode* pNode) {
   // CC fork: OpenITG/NotITG run a frame's InitCommand BEFORE loading its
   // children (Mirin 4 creates `xero` there); ITGmania runs it after.
-  if (pNode->GetAttr("_LegacyXml") != nullptr) {
+  if (pNode->GetAttr("_LegacyXml") != nullptr && getenv("CC_OLD_INIT") == nullptr) {
     Actor::LoadFromNode(pNode);
     if (AutoLoadChildren()) {
       LoadChildrenFromNode(pNode);

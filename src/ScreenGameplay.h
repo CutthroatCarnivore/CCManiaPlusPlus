@@ -211,6 +211,12 @@ class ScreenGameplay : public ScreenWithMenuElements {
                                      // life amount.
 
  protected:
+  // CC fork: NotITG "sleeping" second player for 1-player modfile charts.
+  void CCAddSleepingPlayer();
+  void CCRemoveSleepingPlayer();
+  PlayerNumber m_CCSleepingPN = PLAYER_INVALID;
+  const Style* m_pCCPrevStyle = nullptr;
+
   virtual void UpdateStageStats(
       MultiPlayer /* mp */){};  // overridden for multiplayer
 

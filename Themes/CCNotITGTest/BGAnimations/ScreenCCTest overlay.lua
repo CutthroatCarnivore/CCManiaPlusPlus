@@ -7,6 +7,7 @@ end
 return Def.ActorFrame{
   OnCommand=function(self) self:sleep(1):queuecommand("Go") end,
   GoCommand=function(self)
+    CCMARK = 42
     Trace("CCTEST os=" .. tostring(os) .. " clock=" .. tostring(os and os.clock and os.clock()) .. " typeclock=" .. type(os and os.clock) .. " getn=" .. tostring(table.getn))
     local want = (readfile("Save/cc_test_song.txt") or ""):gsub("%s+$","")
     local song

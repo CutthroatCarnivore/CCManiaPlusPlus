@@ -45,6 +45,8 @@ return Def.ActorFrame{
 			Trace("CCTEST fenvprobe e.zzbg=" .. tostring(rawget(e,"zzbg")) .. " G.zzbg=" .. tostring(rawget(_G,"zzbg"))) end
 		do local ks = {} for k in pairs(rawget(_G,"melody") or {}) do ks[#ks+1]=tostring(k) end
 			Trace("CCTEST melkeys=" .. table.concat(ks,",") .. " err=" .. tostring(rawget(_G,"melody_error"))) end
+		Trace("CCTEST ccmark=" .. tostring(rawget(_G,"CCMARK")))
+		Trace("CCTEST bgglobals Bg1=" .. tostring(rawget(_G,"Bg1")) .. " Red_Bg1=" .. tostring(rawget(_G,"Red_Bg1")) .. " TotalColor=" .. tostring(rawget(_G,"TotalColor")))
 		Trace("CCTEST melody=" .. tostring(rawget(_G,"melody")) .. " mbg=" .. tostring(rawget(_G,"melody") and rawget(melody,"bg")) .. " gbg=" .. tostring(rawget(_G,"bg")) .. " load=" .. tostring(rawget(_G,"melody_load") and table.concat(melody_load,",")))
 		Trace("CCTEST tick " .. elapsed .. " beat=" .. string.format("%.1f", GAMESTATE:GetSongBeat()))
 		if elapsed == 10 then report("t10") end

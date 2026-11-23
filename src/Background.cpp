@@ -428,7 +428,16 @@ bool BackgroundImpl::Layer::CreateBackground(
   }
   ASSERT(!sEffectFile.empty());
 
-  Actor* pActor = ActorUtil::MakeActor(sEffectFile);
+  // CC fork: a NotITG bg folder with a default.xml is a legacy XML actor tree;
+  // load it directly (the generic effect would turn it into an empty BGAnimation).
+  Actor* pActor = nullptr;
+  if (ActorUtil::GetFileType(vsResolved[0]) == FT_Directory &&
+      DoesFileExist(vsResolved[0] + "/default.xml") &&
+      !DoesFileExist(vsResolved[0] + "/default.lua")) {
+    pActor = ActorUtil::MakeActor(vsResolved[0]);
+  } else {
+    pActor = ActorUtil::MakeActor(sEffectFile);
+  }
 
   if (pActor == nullptr) {
     pActor = new Actor;

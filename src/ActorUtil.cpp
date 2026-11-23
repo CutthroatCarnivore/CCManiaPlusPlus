@@ -379,7 +379,9 @@ Actor* ActorUtil::MakeActor(const std::string& sPath_, Actor* pParentActor) {
         return new Actor;
       }
       XNode xml;
+      if (getenv("CC_TRACE_CMDS")) LOG->Trace("CC-CMD MakeActor xml %s", sPath.c_str());
       if (!XmlFileUtil::LoadFromFileShowErrors(xml, sPath)) {
+        if (getenv("CC_TRACE_CMDS")) LOG->Trace("CC-CMD MakeActor xml LOAD FAILED %s", sPath.c_str());
         return new Actor;
       }
       // CC fork: no up-front CompileXNodeTree. Like OpenITG/NotITG, each

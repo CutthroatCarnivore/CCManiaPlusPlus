@@ -770,10 +770,10 @@ static LocalizedString COULDNT_OPEN_LOADING_WINDOW(
 
 // CC fork: the portable CC Edition mirrors the user's everyday ITGmania setup.
 // On every launch, before anything is read, copy settings, button mappings and
-// profile settings from ~/Library/Application Support/ITGmania/Save (read only;
-// the daily driver's files are never changed). Profile scores (Stats.xml)
-// and score history (SL-Scores, GhostData) already in the CC copy are kept;
-// other files are copied when the daily driver's copy is newer. Opt out: put cc_no_import.txt in Save/.
+// profile settings and scores from ~/Library/Application Support/ITGmania/Save (read only;
+// the daily driver's files are never changed), and adds its song library. Profile files,
+// scores included, are copied when the daily driver's copy is newer than the CC copy.
+// Opt out: put cc_no_import.txt in Save/.
 #include <filesystem>
 #include <cstdlib>
 #include <fstream>
@@ -807,11 +807,8 @@ static void CCImportDailyDriverSave(const std::string& sDestSave) {
       if (it->is_directory(ec)) { fs::create_directories(out, ec); continue; }
       std::string name = it->path().filename().string();
       if (name == ".DS_Store") continue;
-      std::string relStr = rel.generic_string();
-      bool bScoreData = name == "Stats.xml" || name == "Stats.xml.sign" ||
-                        relStr.find("/SL-Scores/") != std::string::npos ||
-                        relStr.find("/GhostData/") != std::string::npos;
-      if (bScoreData && fs::exists(out, ec)) continue;  // keep CC scores
+      // Newer copy wins (scores included): scores set in the daily driver show up
+      // here; a CC score file newer than the daily driver's is kept.
       fs::create_directories(out.parent_path(), ec);
       fs::copy_file(it->path(), out, fs::copy_options::update_existing, ec);
       if (!ec) ++n;
@@ -820,6 +817,32 @@ static void CCImportDailyDriverSave(const std::string& sDestSave) {
     log << "ok   " << d << "/ (" << n << " files)\n";
     ec.clear();
   }
+  // Same song library as the daily driver: add its Songs folder (symlinks resolved)
+  // to AdditionalSongFoldersReadOnly in the CC copy of Preferences.ini.
+  fs::path ddSongs = fs::canonical(src.parent_path() / "Songs", ec);
+  if (!ec && fs::is_directory(ddSongs, ec)) {
+    std::ifstream in((dst / "Preferences.ini").string());
+    std::string line, outText;
+    bool found = false;
+    const std::string key = "AdditionalSongFoldersReadOnly=";
+    while (std::getline(in, line)) {
+      if (!line.empty() && line.back() == '\r') line.pop_back();
+      if (line.compare(0, key.size(), key) == 0) {
+        found = true;
+        std::string val = line.substr(key.size());
+        if (val.find(ddSongs.string()) == std::string::npos)
+          val = val.empty() ? ddSongs.string() : val + "," + ddSongs.string();
+        line = key + val;
+      }
+      outText += line + "\n";
+    }
+    in.close();
+    if (!found) outText += key + ddSongs.string() + "\n";
+    std::ofstream o((dst / "Preferences.ini").string(), std::ios::trunc);
+    o << outText;
+    log << "ok   song library " << ddSongs.string() << "\n";
+  }
+  ec.clear();
 }
 
 int sm_main(int argc, char* argv[]) {

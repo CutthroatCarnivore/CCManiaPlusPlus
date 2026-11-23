@@ -1,0 +1,108 @@
+#include "global.h"
+#include "CCSplines.h"
+
+#include <algorithm>
+#include <utility>
+#include <vector>
+
+namespace {
+constexpr int kPlayers = 2;
+constexpr int kCols = 16;
+constexpr int kPoints = 40;
+
+struct Spline {
+  bool set[kPoints] = {};
+  float off[kPoints] = {};
+  float val[kPoints] = {};
+  bool dirty = false;
+  std::vector<std::pair<float, float>> sorted;  // (offset, value)
+};
+
+Spline g_splines[kPlayers][NUM_CCSP][kCols];
+int g_count[kPlayers] = {0, 0};
+
+void Rebuild(Spline& s) {
+  s.sorted.clear();
+  for (int i = 0; i < kPoints; ++i) {
+    if (s.set[i]) s.sorted.emplace_back(s.off[i], s.val[i]);
+  }
+  std::stable_sort(s.sorted.begin(), s.sorted.end(),
+                   [](const std::pair<float, float>& a,
+                      const std::pair<float, float>& b) { return a.first < b.first; });
+  s.dirty = false;
+}
+
+void Recount(int pn) {
+  int n = 0;
+  for (int t = 0; t < NUM_CCSP; ++t)
+    for (int c = 0; c < kCols; ++c)
+      for (int i = 0; i < kPoints; ++i) n += g_splines[pn][t][c].set[i] ? 1 : 0;
+  g_count[pn] = n;
+}
+}  // namespace
+
+void CCSplineSetPoint(int pn, int type, int index, int column, float value,
+                      float offset) {
+  if (pn < 0 || pn >= kPlayers || type < 0 || type >= NUM_CCSP) return;
+  if (index < 0 || index >= kPoints) return;
+  const int c0 = column < 0 ? 0 : column, c1 = column < 0 ? kCols - 1 : column;
+  if (c0 >= kCols) return;
+  for (int c = c0; c <= std::min(c1, kCols - 1); ++c) {
+    Spline& s = g_splines[pn][type][c];
+    if (!s.set[index]) ++g_count[pn];
+    s.set[index] = true;
+    s.off[index] = offset;
+    s.val[index] = value;
+    s.dirty = true;
+  }
+}
+
+void CCSplineReset(int pn, int type, int column) {
+  if (pn < 0 || pn >= kPlayers || type < 0 || type >= NUM_CCSP) return;
+  const int c0 = column < 0 ? 0 : column, c1 = column < 0 ? kCols - 1 : column;
+  for (int c = c0; c <= std::min(c1, kCols - 1); ++c) {
+    Spline& s = g_splines[pn][type][c];
+    for (int i = 0; i < kPoints; ++i) s.set[i] = false;
+    s.sorted.clear();
+    s.dirty = false;
+  }
+  Recount(pn);
+}
+
+void CCSplineResetAll() {
+  for (int p = 0; p < kPlayers; ++p) {
+    for (int t = 0; t < NUM_CCSP; ++t) CCSplineReset(p, t, -1);
+    g_count[p] = 0;
+  }
+}
+
+bool CCSplineAny(int pn) {
+  return pn >= 0 && pn < kPlayers && g_count[pn] > 0;
+}
+
+float CCSplineEval(int pn, int type, int column, float y_offset_px) {
+  if (!CCSplineAny(pn) || type < 0 || type >= NUM_CCSP) return 0.0f;
+  if (column < 0 || column >= kCols) column = 0;
+  Spline& s = g_splines[pn][type][column];
+  if (s.dirty) Rebuild(s);
+  const auto& p = s.sorted;
+  if (p.empty()) return 0.0f;
+  if (p.size() == 1) return p[0].second;
+  const float x = y_offset_px * 100.0f / 64.0f;
+  if (x <= p.front().first) return p.front().second;
+  if (x >= p.back().first) return p.back().second;
+  size_t i = 0;
+  while (i + 1 < p.size() && p[i + 1].first < x) ++i;
+  const float x0 = p[i].first, x1 = p[i + 1].first;
+  if (x1 - x0 < 1e-6f) return p[i + 1].second;
+  const float t = (x - x0) / (x1 - x0);
+  // Catmull-Rom through the neighbouring points (ends clamped).
+  const float v0 = p[i > 0 ? i - 1 : i].second;
+  const float v1 = p[i].second;
+  const float v2 = p[i + 1].second;
+  const float v3 = p[i + 2 < p.size() ? i + 2 : i + 1].second;
+  const float t2 = t * t, t3 = t2 * t;
+  return 0.5f * ((2.0f * v1) + (-v0 + v2) * t +
+                 (2.0f * v0 - 5.0f * v1 + 4.0f * v2 - v3) * t2 +
+                 (-v0 + 3.0f * v1 - 3.0f * v2 + v3) * t3);
+}

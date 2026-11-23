@@ -28,6 +28,7 @@ class NoteField : public ActorFrame {
   ~NoteField();
   // CC fork: NotITG Player:SetHiddenRegions / Player:SetFarDist
   std::vector<std::pair<float, float>> m_CCHiddenRegions;
+  std::vector<int> m_CCHiddenRegionCols;  // -1 = all columns
   int m_iCCFarDist = 0;  // 0 = engine default
   virtual void Update(float fDeltaTime);
   virtual void DrawPrimitives();

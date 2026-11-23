@@ -459,7 +459,12 @@ void Font::GetFontPaths(
   }
 }
 
-std::string Font::GetPageNameFromFileName(const std::string& sFilename) {
+std::string Font::GetPageNameFromFileName(const std::string& sPath) {
+  // CC fork: look only at the file name; song folders like "Song [Author]"
+  // otherwise turn every page of a song's font into the page "Author".
+  const size_t slash = sPath.find_last_of("/\\");
+  const std::string sFilename =
+      slash == std::string::npos ? sPath : sPath.substr(slash + 1);
   size_t begin = sFilename.find_first_of('[');
   if (begin == std::string::npos) {
     return "main";

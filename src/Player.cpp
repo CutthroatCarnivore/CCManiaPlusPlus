@@ -1,4 +1,5 @@
 #include "Player.h"
+#include "CCSplines.h"
 
 #include <algorithm>
 #include <climits>
@@ -3802,7 +3803,9 @@ class LunaPlayer : public Luna<Player> {
   static int SetHiddenRegions(T* p, lua_State* L) {
     if (p->CCGetNoteField() == nullptr) COMMON_RETURN_SELF;
     std::vector<std::pair<float, float>>& v = p->CCGetNoteField()->m_CCHiddenRegions;
+    std::vector<int>& vc = p->CCGetNoteField()->m_CCHiddenRegionCols;
     v.clear();
+    vc.clear();
     if (lua_istable(L, 1)) {
       const int n = static_cast<int>(lua_objlen(L, 1));
       for (int i = 1; i <= n; ++i) {
@@ -3810,21 +3813,56 @@ class LunaPlayer : public Luna<Player> {
         if (lua_istable(L, -1)) {
           lua_rawgeti(L, -1, 1);
           lua_rawgeti(L, -2, 2);
-          if (lua_isnumber(L, -2) && lua_isnumber(L, -1)) {
-            float a = static_cast<float>(lua_tonumber(L, -2));
-            float b = static_cast<float>(lua_tonumber(L, -1));
+          lua_rawgeti(L, -3, 3);  // optional column (0-based)
+          if (lua_isnumber(L, -3) && lua_isnumber(L, -2)) {
+            float a = static_cast<float>(lua_tonumber(L, -3));
+            float b = static_cast<float>(lua_tonumber(L, -2));
             if (b < a) std::swap(a, b);
             v.emplace_back(a, b);
+            vc.push_back(lua_isnumber(L, -1) ? static_cast<int>(lua_tonumber(L, -1)) : -1);
           }
-          lua_pop(L, 2);
+          lua_pop(L, 3);
         }
         lua_pop(L, 1);
       }
     }
     COMMON_RETURN_SELF;
   }
+  // CC fork: NotITG splines -- SetXSpline(index, column, value, offset, speed)
+  static int CCSetSpline(T* p, lua_State* L, int type) {
+    const PlayerState* ps = p->GetPlayerState();
+    if (ps == nullptr) COMMON_RETURN_SELF;
+    CCSplineSetPoint(static_cast<int>(ps->m_PlayerNumber), type, IArg(1),
+                     IArg(2), FArg(3), FArg(4));
+    COMMON_RETURN_SELF;
+  }
+  static int CCResetSpline(T* p, lua_State* L, int type) {
+    const PlayerState* ps = p->GetPlayerState();
+    if (ps == nullptr) COMMON_RETURN_SELF;
+    CCSplineReset(static_cast<int>(ps->m_PlayerNumber), type,
+                  lua_isnumber(L, 1) ? IArg(1) : -1);
+    COMMON_RETURN_SELF;
+  }
+#define CC_SPLINE_METHODS(Name, Type) \
+  static int Set##Name##Spline(T* p, lua_State* L) { return CCSetSpline(p, L, Type); } \
+  static int Reset##Name##Splines(T* p, lua_State* L) { return CCResetSpline(p, L, Type); }
+  CC_SPLINE_METHODS(X, CCSP_X)
+  CC_SPLINE_METHODS(Y, CCSP_Y)
+  CC_SPLINE_METHODS(Z, CCSP_Z)
+  CC_SPLINE_METHODS(RotX, CCSP_ROTX)
+  CC_SPLINE_METHODS(RotY, CCSP_ROTY)
+  CC_SPLINE_METHODS(RotZ, CCSP_ROTZ)
+  CC_SPLINE_METHODS(Size, CCSP_SIZE)
+  CC_SPLINE_METHODS(Skew, CCSP_SKEW)
+  CC_SPLINE_METHODS(Stealth, CCSP_STEALTH)
+  CC_SPLINE_METHODS(Tiny, CCSP_TINY)
+#undef CC_SPLINE_METHODS
+  static int NoClearSplines(T* p, lua_State* L) { COMMON_RETURN_SELF; }
   static int ClearHiddenRegions(T* p, lua_State* L) {
-    if (p->CCGetNoteField()) p->CCGetNoteField()->m_CCHiddenRegions.clear();
+    if (p->CCGetNoteField()) {
+      p->CCGetNoteField()->m_CCHiddenRegions.clear();
+      p->CCGetNoteField()->m_CCHiddenRegionCols.clear();
+    }
     COMMON_RETURN_SELF;
   }
   // CC fork: NotITG Player:SetFarDist(px): how far ahead notes are drawn.
@@ -3844,6 +3882,27 @@ class LunaPlayer : public Luna<Player> {
     ADD_METHOD(SetActorWithComboPosition);
     ADD_METHOD(GetPlayerTimingData);
     ADD_METHOD(GetNoteData);
+    ADD_METHOD(SetXSpline);
+    ADD_METHOD(SetYSpline);
+    ADD_METHOD(SetZSpline);
+    ADD_METHOD(SetRotXSpline);
+    ADD_METHOD(SetRotYSpline);
+    ADD_METHOD(SetRotZSpline);
+    ADD_METHOD(SetSizeSpline);
+    ADD_METHOD(SetSkewSpline);
+    ADD_METHOD(SetStealthSpline);
+    ADD_METHOD(SetTinySpline);
+    ADD_METHOD(ResetXSplines);
+    ADD_METHOD(ResetYSplines);
+    ADD_METHOD(ResetZSplines);
+    ADD_METHOD(ResetRotXSplines);
+    ADD_METHOD(ResetRotYSplines);
+    ADD_METHOD(ResetRotZSplines);
+    ADD_METHOD(ResetSizeSplines);
+    ADD_METHOD(ResetSkewSplines);
+    ADD_METHOD(ResetStealthSplines);
+    ADD_METHOD(ResetTinySplines);
+    ADD_METHOD(NoClearSplines);
     ADD_METHOD(SetHiddenRegions);
     ADD_METHOD(ClearHiddenRegions);
     ADD_METHOD(SetFarDist);

@@ -123,6 +123,7 @@ struct NoteFieldRenderArgs {
   // CC fork: NotITG Player:SetHiddenRegions({{beat1, beat2}, ...}) -- notes in
   // these beat ranges aren't drawn by this field.
   const std::vector<std::pair<float, float>>* cc_hidden_regions = nullptr;
+  const std::vector<int>* cc_hidden_cols = nullptr;
 };
 
 // NCSplineHandler exists to allow NoteColumnRenderer to have separate

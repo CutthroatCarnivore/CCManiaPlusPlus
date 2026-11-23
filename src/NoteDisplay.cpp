@@ -1,4 +1,5 @@
 #include "NoteDisplay.h"
+#include "CCSplines.h"
 
 #include <algorithm>
 #include <cmath>
@@ -911,6 +912,12 @@ void NoteDisplay::DrawHoldPart(
     }
   };
 
+  RageVector3 cc_sp_top(0, 0, 0), cc_sp_bot(0, 0, 0);
+  if (cc_spiral) {
+    cc_path_xz(part_args.y_top, part_args.top_beat, cc_sp_top.x, cc_sp_top.z);
+    cc_path_xz(part_args.y_bottom, part_args.bottom_beat, cc_sp_bot.x, cc_sp_bot.z);
+  }
+
   for (float fY = y_start_pos; !last_vert_set; fY += part_args.y_step) {
     if (fY >= y_end_pos) {
       fY = y_end_pos;
@@ -1061,14 +1068,16 @@ void NoteDisplay::DrawHoldPart(
       center_vert.x += cc_straight * (cc_head.x - center_vert.x);
       center_vert.z += cc_straight * (cc_head.z - center_vert.z);
     }
-    if (cc_spiral) {  // CC fork: spiralholds builds the strip across the path
-      float nx, nz;
-      cc_path_xz(fY + 1.0f, cur_beat, nx, nz);
-      RageVector3 f(nx - center_vert.x, 1.0f, nz - center_vert.z);
+    if (cc_spiral && part_args.y_bottom != part_args.y_top) {
+      // CC fork: NotITG spiralholds draws each hold part as one straight strip
+      // from where its top sits on the arrow path to where its bottom sits.
+      const float t = (fY - part_args.y_top) / (part_args.y_bottom - part_args.y_top);
+      center_vert.x = cc_sp_top.x + (cc_sp_bot.x - cc_sp_top.x) * t;
+      center_vert.z = cc_sp_top.z + (cc_sp_bot.z - cc_sp_top.z) * t;
+      RageVector3 f(cc_sp_bot.x - cc_sp_top.x, part_args.y_bottom - part_args.y_top,
+                    cc_sp_bot.z - cc_sp_top.z);
       RageVec3Normalize(&f, &f);
-      render_forward = RageVector3(f.x + sp_pos_forward.x, f.y + sp_pos_forward.y,
-                                   f.z + sp_pos_forward.z);
-      RageVec3Normalize(&render_forward, &render_forward);
+      render_forward = f;
     }
 
     // Special case for hold caps, which have the same top and bottom beat.
@@ -1539,16 +1548,39 @@ void NoteDisplay::DrawActor(
       }
     }
   }
+  float cc_spline_skew = 0, cc_spline_alpha = 1;
+  {  // CC fork: NotITG rotation/size/tiny/skew/stealth splines
+    const int pn = static_cast<int>(m_pPlayerState->m_PlayerNumber);
+    if (CCSplineAny(pn)) {
+      const int col = column_args.column;
+      ae_rot.x += CCSplineEval(pn, CCSP_ROTX, col, fYOffset);
+      ae_rot.y += CCSplineEval(pn, CCSP_ROTY, col, fYOffset);
+      ae_rot.z += CCSplineEval(pn, CCSP_ROTZ, col, fYOffset);
+      float zf = 1.0f - CCSplineEval(pn, CCSP_SIZE, col, fYOffset) / 200.0f;
+      const float tiny = CCSplineEval(pn, CCSP_TINY, col, fYOffset);
+      if (tiny != 0) zf *= std::pow(0.5f, tiny / 100.0f);
+      if (zf != 1.0f) { ae_zoom.x *= zf; ae_zoom.y *= zf; ae_zoom.z *= zf; }
+      cc_spline_skew = CCSplineEval(pn, CCSP_SKEW, col, fYOffset) / 100.0f;
+      cc_spline_alpha = 1.0f - std::clamp(
+          CCSplineEval(pn, CCSP_STEALTH, col, fYOffset) / 100.0f, 0.0f, 1.0f);
+    }
+  }
   column_args.SetPRZForActor(
       pActor, sp_pos, ae_pos, sp_rot, ae_rot, sp_zoom, ae_zoom);
   {  // CC fork: NotITG noteskew
     const RageVector3 sk =
         ArrowEffects::CCNoteSkew(m_pPlayerState, column_args.column);
-    pActor->SetSkewX(sk.x);
+    pActor->SetSkewX(sk.x + cc_spline_skew);
     pActor->SetSkewY(sk.y);
   }
   // [AJ] this two lines (and how they're handled) piss off many people:
-  pActor->SetDiffuse(diffuse);
+  if (cc_spline_alpha < 1.0f) {  // CC fork: NotITG stealth spline
+    RageColor d = diffuse;
+    d.a *= cc_spline_alpha;
+    pActor->SetDiffuse(d);
+  } else {
+    pActor->SetDiffuse(diffuse);
+  }
   pActor->SetGlow(glow);
 
   bool bNeedsTranslate =
@@ -1789,10 +1821,28 @@ static void CCDrawArrowPath(
   if (v.size() < 2) {
     return;
   }
+  // Build the line as a quad strip (GL wide/smooth lines don't draw on macOS,
+  // which left only dots at the joints).
+  std::vector<RageSpriteVertex> q;
+  q.reserve(v.size() * 2);
+  const float hw = width * 0.5f;
+  for (size_t i = 0; i < v.size(); ++i) {
+    const RageVector3& a = v[i > 0 ? i - 1 : i].p;
+    const RageVector3& b = v[i + 1 < v.size() ? i + 1 : i].p;
+    float dx = b.x - a.x, dy = b.y - a.y;
+    const float len = std::sqrt(dx * dx + dy * dy);
+    if (len < 1e-4f) { dx = 0; dy = 1; } else { dx /= len; dy /= len; }
+    RageSpriteVertex l = v[i], r = v[i];
+    l.p.x += -dy * hw; l.p.y += dx * hw;
+    r.p.x -= -dy * hw; r.p.y -= dx * hw;
+    q.push_back(l);
+    q.push_back(r);
+  }
   DISPLAY->ClearAllTextures();
   DISPLAY->SetBlendMode(BLEND_NORMAL);
   DISPLAY->SetZTestMode(ZTEST_OFF);
-  DISPLAY->DrawLineStrip(v.data(), static_cast<int>(v.size()), width);
+  DISPLAY->SetCullMode(CULL_NONE);
+  DISPLAY->DrawQuadStrip(q.data(), static_cast<int>(q.size()));
 }
 
 void NoteColumnRenderer::DrawPrimitives() {
@@ -1838,7 +1888,10 @@ void NoteColumnRenderer::DrawPrimitives() {
     if (cc_hidden && !cc_hidden->empty()) {  // CC fork: NotITG hidden regions
       const float b = NoteRowToBeat(begin->first);
       bool hide = false;
-      for (const auto& r : *cc_hidden) {
+      const std::vector<int>* cols = m_field_render_args->cc_hidden_cols;
+      for (size_t ri = 0; ri < cc_hidden->size(); ++ri) {
+        const auto& r = (*cc_hidden)[ri];
+        if (cols && ri < cols->size() && (*cols)[ri] >= 0 && (*cols)[ri] != m_column) continue;
         if (b >= r.first && b <= r.second) { hide = true; break; }
       }
       if (hide) continue;

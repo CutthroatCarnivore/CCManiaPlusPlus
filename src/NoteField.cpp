@@ -846,6 +846,7 @@ void NoteField::CalcPixelsBeforeAndAfterTargets() {
     m_FieldRenderArgs.draw_pixels_before_targets = static_cast<float>(m_iCCFarDist);
   }
   m_FieldRenderArgs.cc_hidden_regions = &m_CCHiddenRegions;
+  m_FieldRenderArgs.cc_hidden_cols = &m_CCHiddenRegionCols;
 }
 
 void NoteField::DrawPrimitives() {

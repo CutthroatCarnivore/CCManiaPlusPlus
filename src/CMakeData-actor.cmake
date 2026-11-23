@@ -1,6 +1,7 @@
 list(APPEND SMDATA_ACTOR_BASE_SRC
             "Actor.cpp"
             "CCShader.cpp"
+            "CCSplines.cpp"
             "ActorFrame.cpp"
             "ActorFrameTexture.cpp"
             "ActorMultiTexture.cpp"
@@ -22,6 +23,7 @@ list(APPEND SMDATA_ACTOR_BASE_SRC
 list(APPEND SMDATA_ACTOR_BASE_HPP
             "Actor.h"
             "CCShader.h"
+            "CCSplines.h"
             "ActorFrame.h"
             "ActorFrameTexture.h"
             "ActorMultiTexture.h"

@@ -1,4 +1,5 @@
 #include "ArrowEffects.h"
+#include "CCSplines.h"
 
 #include <algorithm>
 #include <cfloat>
@@ -1647,6 +1648,14 @@ RageVector3 ArrowEffects::CCPosOffset(
       r.z += v * ARROW_SIZE * std::sin(fYOffset * sp * 2.0f / (1.0f + CCV(SPIRALZPERIOD)) + CCV(SPIRALZOFFSET));
   }
   if ((v = CCV(CUBICXOFFSET)) != 0) r.x += v * yb * yb * yb * 0.0f;
+  {  // CC fork: NotITG splines (values in percent of an arrow)
+    const int pn = static_cast<int>(pPlayerState->m_PlayerNumber);
+    if (CCSplineAny(pn)) {
+      r.x += CCSplineEval(pn, CCSP_X, iCol, fYOffset) * ARROW_SIZE / 100.0f;
+      r.y += CCSplineEval(pn, CCSP_Y, iCol, fYOffset) * ARROW_SIZE / 100.0f;
+      r.z += CCSplineEval(pn, CCSP_Z, iCol, fYOffset) * ARROW_SIZE / 100.0f;
+    }
+  }
 #undef CCV
   return r;
 }

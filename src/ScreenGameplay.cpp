@@ -1,4 +1,5 @@
 #include "ScreenGameplay.h"
+#include "CCSplines.h"
 
 #include <algorithm>
 #include <cmath>
@@ -1363,6 +1364,7 @@ void ScreenGameplay::ReloadCurrentSong() {
 }
 
 void ScreenGameplay::LoadNextSong() {
+  CCSplineResetAll();  // CC fork: NotITG splines belong to one song
   GAMESTATE->ResetMusicStatistics();
 
   FOREACH_EnabledPlayerInfo(m_vPlayerInfo, pi) {

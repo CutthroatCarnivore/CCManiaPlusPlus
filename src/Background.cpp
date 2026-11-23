@@ -61,6 +61,7 @@ static ThemeMetric<bool> RAND_BG_ENDS_AT_LAST_BEAT(
     "Background", "RandomBGEndsAtLastBeat");
 
 static Preference<bool> g_bShowDanger("ShowDanger", true);
+bool CCSongIsNotITG(const Song* pSong);  // CC fork (ScreenGameplay.cpp)
 static Preference<float> g_fBGBrightness("BGBrightness", 0.7f);
 static Preference<RandomBackgroundMode> g_RandomBackgroundMode(
     "RandomBackgroundMode", BGMODE_RANDOMMOVIES);
@@ -1025,6 +1026,11 @@ void BrightnessOverlay::SetActualBrightness() {
                                    .m_fCover;
 
   float fBaseBGBrightness = g_fBGBrightness;
+  // CC fork: NotITG modfiles are authored against a full-brightness
+  // background (NotITG doesn't dim them), so don't darken their visuals.
+  if (GAMESTATE->m_pCurSong && CCSongIsNotITG(GAMESTATE->m_pCurSong)) {
+    fBaseBGBrightness = 1.0f;
+  }
 
   // Revision:  Themes that implement a training mode should handle the
   // brightness for it.  The engine should not force the brightness for

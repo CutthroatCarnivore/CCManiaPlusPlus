@@ -476,8 +476,6 @@ void ScreenGameplay::CCRemoveSleepingPlayer() {
     return;
   }
   const PlayerNumber pn = m_CCSleepingPN;
-  m_CCSleepingPN = PLAYER_INVALID;
-  g_CCSleepingPN = PLAYER_INVALID;
   // This screen keeps updating during its out transition; stop treating the
   // sleeping player as enabled, since unjoining clears its steps.
   for (PlayerInfo& pi : m_vPlayerInfo) {
@@ -488,11 +486,13 @@ void ScreenGameplay::CCRemoveSleepingPlayer() {
       }
     }
   }
-  GAMESTATE->UnjoinPlayer(pn);
   if (m_pCCPrevStyle != nullptr) {
     GAMESTATE->SetCurrentStyle(m_pCCPrevStyle, PLAYER_INVALID);
   }
+  GAMESTATE->UnjoinPlayer(pn);
   m_pCCPrevStyle = nullptr;
+  m_CCSleepingPN = PLAYER_INVALID;
+  g_CCSleepingPN = PLAYER_INVALID;
 }
 
 void ScreenGameplay::Init() {

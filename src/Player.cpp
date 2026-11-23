@@ -1854,7 +1854,10 @@ Player::PlayerNoteFieldPositioner::PlayerNoteFieldPositioner(
     Player* p, float x, float tilt, float skew, float mini, float center_y,
     bool reverse)
     : player(p) {
-  player->PushPlayerMatrix(x, skew, center_y);
+  // CC fork: NotITG whole-player mods (x/y/z in pixels, rotationx/y/z in degrees)
+  const PlayerOptions& cco = player->m_pPlayerState->m_PlayerOptions.GetCurrent();
+  player->PushPlayerMatrix(
+      x + cco.m_fCC[CCMOD_PLAYERX], skew, center_y + cco.m_fCC[CCMOD_PLAYERY]);
   float reverse_mult = (reverse ? -1 : 1);
   original_y = player->m_pNoteField->GetY();
   float tilt_degrees = SCALE(tilt, -1.f, +1.f, +30, -30) * reverse_mult;
@@ -1877,11 +1880,21 @@ Player::PlayerNoteFieldPositioner::PlayerNoteFieldPositioner(
   } else {
     player->m_pNoteField->SetZoom(zoom);
   }
-  player->m_pNoteField->SetRotationX(tilt_degrees);
+  player->m_pNoteField->SetRotationX(tilt_degrees + cco.m_fCC[CCMOD_ROTATIONX]);
+  player->m_pNoteField->SetRotationY(cco.m_fCC[CCMOD_ROTATIONY]);
+  player->m_pNoteField->SetRotationZ(cco.m_fCC[CCMOD_ROTATIONZ]);
+  player->m_pNoteField->SetZ(cco.m_fCC[CCMOD_PLAYERZ]);
+  player->m_pNoteField->SetSkewX(cco.m_fCC[CCMOD_PLAYERSKEWX]);
+  player->m_pNoteField->SetSkewY(cco.m_fCC[CCMOD_PLAYERSKEWY]);
 }
 
 Player::PlayerNoteFieldPositioner::~PlayerNoteFieldPositioner() {
   player->m_pNoteField->SetY(original_y);
+  player->m_pNoteField->SetRotationY(0.f);
+  player->m_pNoteField->SetRotationZ(0.f);
+  player->m_pNoteField->SetZ(0.f);
+  player->m_pNoteField->SetSkewX(0.f);
+  player->m_pNoteField->SetSkewY(0.f);
   player->PopPlayerMatrix();
 }
 

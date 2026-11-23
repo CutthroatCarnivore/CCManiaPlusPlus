@@ -8,6 +8,14 @@
 // Every mod also exists per column as "<name><col>" (NotITG numbering
 // while a NotITG modfile is loaded, see CCColBase()).
 #define CC_NOTITG_MODS(X) \
+  X(ROTATIONX, "rotationx") \
+  X(ROTATIONY, "rotationy") \
+  X(ROTATIONZ, "rotationz") \
+  X(PLAYERX, "x") \
+  X(PLAYERY, "y") \
+  X(PLAYERZ, "z") \
+  X(PLAYERSKEWX, "skewx") \
+  X(PLAYERSKEWY, "skewy") \
   X(TINYX, "tinyx")       \
   X(TINYY, "tinyy")       \
   X(TINYZ, "tinyz")       \

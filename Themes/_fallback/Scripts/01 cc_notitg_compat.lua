@@ -219,11 +219,13 @@ function CCRunFrameHooks(dt)
 			h.left = h.left - dt
 			if ok then h.fails = 0
 			else
+				local stale = tostring(err):find("stale Actor", 1, true)
+				if stale then h.dead = true end  -- target actor destroyed by a screen change: drop quietly
 				h.fails = (h.fails or 0) + 1
 				h.total_fails = (h.total_fails or 0) + 1
 				local key = tostring(err):match("^[^\n]*") or "?"
 				CCHookErrSeen = CCHookErrSeen or {}
-				if not CCHookErrSeen[key] then
+				if not CCHookErrSeen[key] and not stale then
 					CCHookErrSeen[key] = true
 					Trace("CC-NOTITG hook error: " .. tostring(err))
 				end

@@ -142,7 +142,9 @@ void Dialog::Error(std::string sMessage, std::string sID) {
 
   RageThread::SetIsShowingDialog(true);
 
-  g_pImpl->Error(sMessage, sID);
+  if (DialogsEnabled()) {
+    g_pImpl->Error(sMessage, sID);
+  }
 
   RageThread::SetIsShowingDialog(false);
 }

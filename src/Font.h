@@ -150,6 +150,8 @@ class Font {
  public:
   int m_iRefCount;
   std::string path;
+  // CC fork: false for a font with no glyphs (failed load); callers must not draw with it.
+  bool CCUsable() const { return m_iCharToGlyph.find((wchar_t)0xF8FF) != m_iCharToGlyph.end(); }
 
   Font();
   ~Font();

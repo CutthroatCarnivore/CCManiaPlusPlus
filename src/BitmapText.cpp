@@ -256,6 +256,16 @@ void BitmapText::BuildChars() {
   if (m_pFont == nullptr) {
     return;
   }
+  // CC fork: a font that failed to load has no default glyph; Font::GetGlyph would throw
+  // a fatal exception. Draw nothing instead.
+  if (!m_pFont->CCUsable()) {
+    m_size.x = 0;
+    m_size.y = 0;
+    m_iLineWidths.clear();
+    m_aVertices.clear();
+    m_vpFontPageTextures.clear();
+    return;
+  }
 
   // calculate line lengths and widths
   m_size.x = 0;

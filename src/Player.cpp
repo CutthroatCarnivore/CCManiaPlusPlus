@@ -3780,17 +3780,44 @@ class LunaPlayer : public Luna<Player> {
     return 1;
   }
   GET_SET_BOOL_METHOD(oitg_zoom_mode, m_oitg_zoom_mode);
-  // CC fork: NotITG Player:GetNoteData(). Table of notes sorted by beat, each
-  // {beat, column (0-based), holdLengthInBeats (0 for taps), type string}.
+  // CC fork: NotITG Player:GetNoteData([startBeat, endBeat]). One entry per
+  // note in row order (columns left to right within a row):
+  //   {beat, column (0-based), type, length = hold length in beats (holds/rolls)}
+  // type: 1 tap, 2 hold, 4 roll, "M" mine, "L" lift, "F" fake. Hold tails and
+  // keysounds are left out. The range is inclusive and snapped to rows; an end
+  // past the last note (or -1) means the last note. With no range, an end at
+  // or before the start, or -1 for either, the whole chart is returned
+  // (NotITG does the same).
   static int GetNoteData(T* p, lua_State* L) {
     const NoteData& nd = p->GetNoteData();
-    struct CCNote { int row; int track; int dur; TapNoteType type; };
+    const int last_row = nd.GetLastRow();
+    int first = 0, last = last_row;
+    if (lua_gettop(L) >= 2 && !lua_isnil(L, 2)) {
+      const float b0 = FArg(1), b1 = FArg(2);
+      int r0 = static_cast<int>(std::lround(b0 * ROWS_PER_BEAT));
+      int r1 = (b1 == -1.0f || b1 * ROWS_PER_BEAT > last_row)
+                   ? last_row
+                   : static_cast<int>(std::lround(b1 * ROWS_PER_BEAT));
+      if (!(r1 <= r0 || b0 == -1.0f || b1 == -1.0f)) {
+        first = r0;
+        last = r1;
+      } else {
+        first = nd.GetFirstRow();
+      }
+    }
+    struct CCNote { int row; int track; int dur; const TapNote* tn; };
     std::vector<CCNote> notes;
     for (int t = 0; t < nd.GetNumTracks(); ++t) {
-      FOREACH_NONEMPTY_ROW_IN_TRACK(nd, t, r) {
+      FOREACH_NONEMPTY_ROW_IN_TRACK_RANGE(nd, t, r, first, last + 1) {
         const TapNote& tn = nd.GetTapNote(t, r);
-        if (tn.type == TapNoteType_Empty || tn.type == TapNoteType_AutoKeysound) continue;
-        notes.push_back({r, t, tn.iDuration, tn.type});
+        switch (tn.type) {
+          case TapNoteType_Tap: case TapNoteType_HoldHead: case TapNoteType_Mine:
+          case TapNoteType_Lift: case TapNoteType_Fake:
+            notes.push_back({r, t, tn.iDuration, &tn});
+            break;
+          default:
+            break;
+        }
       }
     }
     std::sort(notes.begin(), notes.end(), [](const CCNote& a, const CCNote& b) {
@@ -3802,8 +3829,20 @@ class LunaPlayer : public Luna<Player> {
       lua_newtable(L);
       lua_pushnumber(L, NoteRowToBeat(n.row)); lua_rawseti(L, -2, 1);
       lua_pushnumber(L, n.track);              lua_rawseti(L, -2, 2);
-      lua_pushnumber(L, NoteRowToBeat(n.dur)); lua_rawseti(L, -2, 3);
-      lua_pushstring(L, TapNoteTypeToString(n.type).c_str()); lua_rawseti(L, -2, 4);
+      switch (n.tn->type) {
+        case TapNoteType_HoldHead:
+          lua_pushnumber(L, n.tn->subType == TapNoteSubType_Roll ? 4 : 2);
+          break;
+        case TapNoteType_Mine: lua_pushstring(L, "M"); break;
+        case TapNoteType_Lift: lua_pushstring(L, "L"); break;
+        case TapNoteType_Fake: lua_pushstring(L, "F"); break;
+        default: lua_pushnumber(L, 1); break;
+      }
+      lua_rawseti(L, -2, 3);
+      if (n.dur > 0) {
+        lua_pushnumber(L, NoteRowToBeat(n.dur));
+        lua_setfield(L, -2, "length");
+      }
       lua_rawseti(L, -2, idx++);
     }
     return 1;

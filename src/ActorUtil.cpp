@@ -191,15 +191,109 @@ std::string GetLegacyActorClass(XNode* pActor) {
 }
 }  // namespace
 
-// CC fork: OpenITG/NotITG Var="name" publishes the actor as a Lua global.
+// CC fork: OpenITG/NotITG Var="name" publishes the actor as a Lua global. A
+// NotITG layer's Name does the same ("BlackMask", "rec[1][2]", "melody.x"):
+// the path is walked through nested tables, creating the missing ones.
+static bool CCSetLegacyPath(Lua* L, const std::string& path, Actor* pActor,
+                            bool bOverwriteRoot) {
+  // Split into tokens: identifier, then .ident or [integer] parts.
+  struct Tok { bool isIndex; std::string name; int index; };
+  std::vector<Tok> toks;
+  size_t i = 0, n = path.size();
+  auto isIdChar = [](char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' ||
+           (c >= '0' && c <= '9');
+  };
+  if (n == 0 || (path[0] >= '0' && path[0] <= '9')) return false;
+  while (i < n) {
+    if (toks.empty() || path[i] == '.') {
+      if (!toks.empty()) i++;
+      size_t j = i;
+      while (j < n && isIdChar(path[j])) j++;
+      if (j == i) return false;
+      toks.push_back({false, path.substr(i, j - i), 0});
+      i = j;
+    } else if (path[i] == '[') {
+      size_t j = path.find(']', i);
+      if (j == std::string::npos || j == i + 1) return false;
+      std::string num = path.substr(i + 1, j - i - 1);
+      for (char c : num) if (c < '0' || c > '9') return false;
+      toks.push_back({true, "", atoi(num.c_str())});
+      i = j + 1;
+    } else {
+      return false;
+    }
+  }
+  if (toks.empty() || toks[0].isIndex) return false;
+  const int top = lua_gettop(L);
+  if (toks.size() == 1) {
+    lua_getglobal(L, toks[0].name.c_str());
+    const bool exists = !lua_isnil(L, -1);
+    lua_settop(L, top);
+    if (exists && !bOverwriteRoot) return false;
+    pActor->PushSelf(L);
+    lua_setglobal(L, toks[0].name.c_str());
+    return true;
+  }
+  lua_getglobal(L, toks[0].name.c_str());
+  if (lua_isnil(L, -1)) {
+    lua_pop(L, 1);
+    lua_newtable(L);
+    lua_pushvalue(L, -1);
+    lua_setglobal(L, toks[0].name.c_str());
+  } else if (!lua_istable(L, -1)) {
+    lua_settop(L, top);
+    return false;
+  }
+  for (size_t k = 1; k < toks.size(); k++) {
+    const bool last = (k + 1 == toks.size());
+    if (last) {
+      pActor->PushSelf(L);
+      if (toks[k].isIndex) lua_rawseti(L, -2, toks[k].index);
+      else lua_setfield(L, -2, toks[k].name.c_str());
+      break;
+    }
+    if (toks[k].isIndex) lua_rawgeti(L, -1, toks[k].index);
+    else lua_getfield(L, -1, toks[k].name.c_str());
+    if (lua_isnil(L, -1)) {
+      lua_pop(L, 1);
+      lua_newtable(L);
+      lua_pushvalue(L, -1);
+      if (toks[k].isIndex) lua_rawseti(L, -3, toks[k].index);
+      else lua_setfield(L, -3, toks[k].name.c_str());
+    } else if (!lua_istable(L, -1)) {
+      lua_settop(L, top);
+      return false;
+    }
+    lua_remove(L, -2);
+  }
+  lua_settop(L, top);
+  return true;
+}
+
 static void CCSetLegacyVar(const XNode& node, Actor* pActor) {
-  std::string sVar;
-  if (pActor == nullptr || !node.GetAttrValue("Var", sVar) || sVar.empty()) {
+  if (pActor == nullptr) {
+    return;
+  }
+  std::string sVar, sName;
+  const bool bVar = node.GetAttrValue("Var", sVar) && !sVar.empty();
+  const bool bName = node.GetAttr("_LegacyXml") != nullptr &&
+                     node.GetAttrValue("Name", sName) && !sName.empty();
+  if (!bVar && !bName) {
     return;
   }
   Lua* L = LUA->Get();
-  pActor->PushSelf(L);
-  lua_setglobal(L, sVar.c_str());
+  if (bVar && !CCSetLegacyPath(L, sVar, pActor, true)) {
+    pActor->PushSelf(L);
+    lua_setglobal(L, sVar.c_str());
+  }
+  if (bName) {
+    const bool ok = CCSetLegacyPath(L, sName, pActor, false);
+    static int nTrace = 0;
+    if (nTrace++ < 40) {
+      LOG->Trace("CC-NOTITG name global '%s' -> %s", sName.c_str(), ok ? "set" : "skipped");
+    }
+  }
   LUA->Release(L);
 }
 
@@ -241,6 +335,10 @@ Actor* ActorUtil::LoadFromNode(const XNode* _pNode, Actor* pParentActor) {
   if (!bHasClass && bLegacy) {
     sClass = GetLegacyActorClass(&node);
   }
+  // CC fork: NotITG's Aux layer is a plain actor that carries aux/getaux.
+  if (bLegacy && sClass == "Aux") {
+    sClass = "Actor";
+  }
 
   std::map<std::string, CreateActorFn>::iterator iter =
       g_pmapRegistrees->find(sClass);
@@ -266,6 +364,30 @@ Actor* ActorUtil::LoadFromNode(const XNode* _pNode, Actor* pParentActor) {
         pNewActor->LoadFromNode(&node);
         return pNewActor;
       }
+      // CC fork: NotITG gives a layer whose File is missing a blank actor that
+      // still has its Name/Var and commands (white.png becomes a plain quad),
+      // so the modfile's later calls on it keep working.
+      std::string sLower = sFile;
+      MakeLower(sLower);
+      Actor* pBlank = nullptr;
+      if (sLower.find("white") != std::string::npos ||
+          sLower.find("black") != std::string::npos ||
+          sLower.find("quad") != std::string::npos) {
+        std::map<std::string, CreateActorFn>::iterator q =
+            g_pmapRegistrees->find("Quad");
+        if (q != g_pmapRegistrees->end()) {
+          pBlank = q->second();
+        }
+      }
+      if (pBlank == nullptr) {
+        pBlank = new Actor;
+      }
+      if (pParentActor) {
+        pBlank->SetParent(pParentActor);
+      }
+      CCSetLegacyVar(node, pBlank);
+      pBlank->LoadFromNode(&node);
+      return pBlank;
     }
 
     // sClass is invalid

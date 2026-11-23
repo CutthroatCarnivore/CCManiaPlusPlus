@@ -402,12 +402,70 @@ do
 		for k, mt in pairs(reg) do
 			if type(k) == "string" and type(mt) == "table" and rawget(mt, "__index") ~= nil
 				and type(_G[k]) == "table" and _G[k].GetChild and rawget(mt, "__call") == nil then
-				mt.__call = function(self, name) return self:GetChild(name) end
+				mt.__call = function(self, name)
+					-- NotITG: frame(n) is the n-th child (1-based); frame('Name') by name
+					if type(name) == "number" then
+						if self.GetChildAt then return self:GetChildAt(name - 1) end
+						return nil
+					end
+					return self:GetChild(name)
+				end
 				n = n + 1
 			end
 		end
 	end
 	Trace("CC-NOTITG: callable actor classes = " .. n)
+end
+
+-- NotITG actor/stat methods that modfiles call (found by running every song)
+if Actor then
+	if rawget(Actor, "GetHidden") == nil then
+		Actor.GetHidden = function(self) return self:GetVisible() and 0 or 1 end
+	end
+	if rawget(Actor, "SetFPS") == nil then
+		Actor.SetFPS = function(self, fps)
+			fps = tonumber(fps) or 0
+			if fps > 0 and self.SetAllStateDelays then self:SetAllStateDelays(1 / fps) end
+			return self
+		end
+	end
+end
+-- NotITG Sound layers take lower-case `stop;start` commands.
+if Actor then
+	if rawget(Actor, "stop") == nil then
+		Actor.stop = function(self) if self.Stop then self:Stop() end return self end
+	end
+	if rawget(Actor, "start") == nil then
+		Actor.start = function(self) if self.Play then self:Play() end return self end
+	end
+end
+-- NotITG always has a top screen; hand song scripts a harmless null object while ours is switching.
+do
+	local getinfo = debug and debug.getinfo
+	local function song_caller()
+		if not (CCIsNotITGSong and CCIsNotITGSong() and getinfo) then return false end
+		local info = getinfo(3, "S")
+		return info ~= nil and info.source ~= nil and info.source:find("/Songs/", 1, true) ~= nil
+	end
+	if StatsManager and StatsManager.GetCurStageStats then
+		local orig_gcss = StatsManager.GetCurStageStats
+		StatsManager.GetCurStageStats = function(self)
+			local r = orig_gcss(self)
+			if r == nil and song_caller() then return CCNull end
+			return r
+		end
+	end
+	if ScreenManager and ScreenManager.GetTopScreen then
+		local orig_gts = ScreenManager.GetTopScreen
+		ScreenManager.GetTopScreen = function(self)
+			local r = orig_gts(self)
+			if r == nil and song_caller() then return CCNull end
+			return r
+		end
+	end
+end
+if PlayerStageStats and rawget(PlayerStageStats, "SetTapNoteScores") == nil then
+	PlayerStageStats.SetTapNoteScores = function(self, tns, n) end
 end
 
 -- CC fork: remember which songs ran as NotITG modfiles so themes can keep

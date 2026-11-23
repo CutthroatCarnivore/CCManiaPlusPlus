@@ -156,7 +156,24 @@ void ImageCache::LoadImage(std::string sImageDir, std::string sImagePath) {
     }
 
     CHECKPOINT_M(ssprintf("ImageCache::LoadImage: %s", sCachePath.c_str()));
-    RageSurface* pImage = RageSurfaceUtils::LoadSurface(sCachePath);
+    // CC fork: same idea as the song cache (Song.cpp): read the daily driver's
+    // identical cached banner from the internal SSD when it has the same size.
+    std::string sLoadPath = sCachePath;
+    {
+      extern bool g_bCCDDCacheMounted;  // StepMania.cpp
+      if (tries == 0 && g_bCCDDCacheMounted) {
+        const std::string sCacheRoot = SpecialFiles::CACHE_DIR;  // "/Cache/"
+        if (BeginsWith(sCachePath, sCacheRoot)) {
+          const std::string dd =
+              "/CCDDCache/" + sCachePath.substr(sCacheRoot.size());
+          const int ours = FILEMAN->GetFileSizeInBytes(sCachePath);
+          if (ours > 0 && FILEMAN->GetFileSizeInBytes(dd) == ours) {
+            sLoadPath = dd;
+          }
+        }
+      }
+    }
+    RageSurface* pImage = RageSurfaceUtils::LoadSurface(sLoadPath);
     if (pImage == nullptr) {
       if (tries == 0) {
         /* The file doesn't exist.  It's possible that the image cache file is

@@ -776,7 +776,158 @@ static LocalizedString COULDNT_OPEN_LOADING_WINDOW(
 // Opt out: put cc_no_import.txt in Save/.
 #include <filesystem>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
+#include <iterator>
+// CC fork: mount the daily driver's Cache folder (internal SSD) read only at
+// /CCDDCache so Song::LoadFromSongDir can read identical song cache entries
+// from there instead of the slow external drive. Never written to.
+bool g_bCCDDCacheMounted = false;
+static void CCMountDailyDriverCache(const std::string& sSave) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const char* home = std::getenv("HOME");
+  if (!home || fs::exists(fs::path(sSave) / "cc_no_import.txt", ec)) return;
+  fs::path dd = fs::path(home) / "Library/Application Support/ITGmania/Cache";
+  if (!fs::is_directory(dd / "Songs", ec)) return;
+  g_bCCDDCacheMounted = FILEMAN->Mount("dirro", dd.string(), "/CCDDCache");
+  LOG->Info("CC fork: daily driver song cache %s (%s)",
+            g_bCCDDCacheMounted ? "mounted" : "not mounted", dd.string().c_str());
+}
+
+// CC fork: on a Mac that also has the everyday ITGmania with the Cutthroat
+// Carnivore theme, read the theme, the _fallback theme and the noteskins from
+// the daily driver's copies on the internal SSD. The CCMania++ folder usually
+// sits on a busy external drive (stream recording + cloud sync), which made
+// every screen load about 10x slower than in the daily driver. It also keeps
+// the theme in sync with the daily driver automatically.
+// CC's own changes always win: CCOverlay/Themes holds the CC versions of the
+// files CC changed (built by tools/build_ccmania.sh for _fallback, refreshed
+// here on every launch for Simply Love by patching the daily driver's current
+// file). Files only CC has still come from the CCMania++ folder.
+// Opt out: put cc_no_import.txt or cc_no_shadow.txt in Save/.
+namespace {
+bool CCReadAll(const std::filesystem::path& p, std::string& out) {
+  std::ifstream f(p, std::ios::binary);
+  if (!f) return false;
+  out.assign(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>());
+  return true;
+}
+void CCWriteIfChanged(const std::filesystem::path& p, const std::string& s) {
+  std::string old;
+  if (CCReadAll(p, old) && old == s) return;
+  std::error_code ec;
+  std::filesystem::create_directories(p.parent_path(), ec);
+  std::ofstream f(p, std::ios::binary | std::ios::trunc);
+  f << s;
+}
+struct CCThemePatch {
+  const char* file;     // relative to the theme folder
+  const char* find;     // text in the daily driver's file
+  const char* replace;  // CC version of that text
+};
+const CCThemePatch kCCSimplyLovePatches[] = {
+    // NotITG modfile scores are never auto-submitted to GrooveStats/BoogieStats.
+    {"BGAnimations/ScreenEvaluation common/Shared/AutoSubmitScore.lua",
+     "if not IsServiceAllowed(SL.GrooveStats.AutoSubmit) or "
+     "GAMESTATE:IsCourseMode() then return end",
+     "if not IsServiceAllowed(SL.GrooveStats.AutoSubmit) or "
+     "GAMESTATE:IsCourseMode() or (CCLastSongIsNotITG and "
+     "CCLastSongIsNotITG()) then return end"},
+    {"Scripts/SL-Helpers-GrooveStats.lua",
+     "\tlocal badSettingsStr = table.concat(badSettings, \"\\n\")\n",
+     "\tlocal badSettingsStr = table.concat(badSettings, \"\\n\")\n\n"
+     "\tif CCLastSongIsNotITG and CCLastSongIsNotITG() then allChecksValid = "
+     "false; badSettingsStr = \"NotITG modfile: not submitted\" end\n"},
+    // CC Scorecard: songs copied into another pack (CCMania++ Top 20) still
+    // find their card by song folder.
+    {"Modules/CCScorecard.lua",
+     "\tlocal pack = data[song:GetGroupName()]\n"
+     "\tif not pack then return nil end\n"
+     "\tlocal folder = song:GetSongDir():match(\"([^/]+)/?$\")\n"
+     "\tif not folder then return nil end\n"
+     "\tfolder = folder:gsub(\"|\", \"\xC2\xA6\")\n",
+     "\tlocal folder = song:GetSongDir():match(\"([^/]+)/?$\")\n"
+     "\tif not folder then return nil end\n"
+     "\tfolder = folder:gsub(\"|\", \"\xC2\xA6\")\n"
+     "\tlocal pack = data[song:GetGroupName()]\n"
+     "\tif not (pack and pack[folder]) then\n"
+     "\t\t-- CCMania++: the song lives in another pack (e.g. CCMania++ Top 20)\n"
+     "\t\tpack = nil\n"
+     "\t\tfor name, p in pairs(data) do\n"
+     "\t\t\tif p[folder] then\n"
+     "\t\t\t\tif not pack or name:find(\"Cutthroat Carnivore\", 1, true) then pack = p end\n"
+     "\t\t\tend\n"
+     "\t\tend\n"
+     "\tend\n"
+     "\tif not pack then return nil end\n"},
+};
+}  // namespace
+
+static void CCMountDailyDriverShadows(const std::string& sRoot) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path root(sRoot);
+  if (fs::exists(root / "Save/cc_no_import.txt", ec) ||
+      fs::exists(root / "Save/cc_no_shadow.txt", ec)) {
+    return;
+  }
+  const char* home = std::getenv("HOME");
+  if (!home) return;
+  const fs::path res = "/Applications/ITGmania.app/Contents/Resources";
+  const fs::path ddSL = res / "Themes/Simply Love";
+  const fs::path ddFB = res / "Themes/_fallback";
+  const fs::path ddNS =
+      fs::path(home) / "Library/Application Support/ITGmania/NoteSkins";
+  const fs::path ov = root / "CCOverlay/Themes";
+  bool any = false;
+
+  // _fallback: only with the overlay the build made (CC's changed files).
+  if (fs::is_directory(ddFB, ec) &&
+      fs::is_regular_file(ov / "_fallback/Scripts/01 cc_notitg_compat.lua", ec)) {
+    any |= FILEMAN->Mount("dirro", ddFB.string(), "/Themes/_fallback");
+  }
+
+  // Simply Love: only when the daily driver runs the Cutthroat Carnivore theme.
+  if (fs::is_regular_file(ddSL / "Modules/CCScorecard.lua", ec)) {
+    bool ok = true;
+    for (const CCThemePatch& p : kCCSimplyLovePatches) {
+      std::string text;
+      const fs::path out = ov / "Simply Love" / p.file;
+      if (CCReadAll(ddSL / p.file, text)) {
+        const size_t at = text.find(p.find);
+        if (at != std::string::npos) {
+          text.replace(at, std::strlen(p.find), p.replace);
+          CCWriteIfChanged(out, text);
+          continue;
+        }
+        if (text.find(p.replace) != std::string::npos) {
+          CCWriteIfChanged(out, text);  // daily driver already has it
+          continue;
+        }
+      }
+      // Couldn't patch the daily driver's file: keep CC's own version.
+      if (CCReadAll(root / "Themes/Simply Love" / p.file, text)) {
+        CCWriteIfChanged(out, text);
+        LOG->Warn("CC fork: theme patch didn't apply, using CC copy of %s", p.file);
+      } else {
+        ok = false;
+      }
+    }
+    if (ok) {
+      any |= FILEMAN->Mount("dirro", ddSL.string(), "/Themes/Simply Love");
+    }
+  }
+
+  if (fs::is_directory(ddNS, ec)) {
+    FILEMAN->Mount("dirro", ddNS.string(), "/NoteSkins");
+  }
+  if (any) {
+    FILEMAN->Mount("dirro", ov.string(), "/Themes");  // last mounted wins
+  }
+  LOG->Info("CC fork: daily driver theme/noteskin shadows %s", any ? "on" : "off");
+}
+
 static void CCImportDailyDriverSave(const std::string& sDestSave) {
   namespace fs = std::filesystem;
   std::error_code ec;
@@ -909,6 +1060,10 @@ int sm_main(int argc, char* argv[]) {
       "dirro", PREFSMAN->m_sAdditionalSongFoldersReadOnly.Get(), "/Songs");
   MountFolders(
       "dir", PREFSMAN->m_sAdditionalSongFoldersWritable.Get(), "/Songs");
+  if (bPortable) {
+    CCMountDailyDriverCache(RageFileManagerUtil::sDirOfExecutable + "/Save");
+    CCMountDailyDriverShadows(RageFileManagerUtil::sDirOfExecutable);
+  }
   MountFolders(
       "dirro", PREFSMAN->m_sAdditionalCourseFoldersReadOnly.Get(), "/Courses");
   MountFolders(

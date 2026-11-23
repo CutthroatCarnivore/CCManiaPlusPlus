@@ -325,9 +325,29 @@ bool Song::LoadFromSongDir(
                        m_sSongDir.c_str(),
                        GetCacheFilePath().c_str());
     */
+    // CC fork: the portable CCMania++ folder (and its cache) usually sits on a
+    // busy external drive, while the daily driver ITGmania keeps the same song
+    // cache on the internal SSD. When that copy has the exact same size as ours
+    // (same song, same loader result), read it instead: same data, far faster.
+    // Songs the CC loader treats differently (NotITG modfiles) differ in size
+    // and keep using our own cache.
+    std::string load_path = cache_file_path;
+    extern bool g_bCCDDCacheMounted;  // StepMania.cpp
+    if (PREFSMAN->m_bFastLoad && g_bCCDDCacheMounted) {
+      const std::string dd = "/CCDDCache/Songs/" + Basename(cache_file_path);
+      const int ours = FILEMAN->GetFileSizeInBytes(cache_file_path);
+      if (ours > 0 && FILEMAN->GetFileSizeInBytes(dd) == ours) {
+        load_path = dd;
+      }
+    }
     SSCLoader loaderSSC;
     bool bLoadedFromCache =
-        loaderSSC.LoadFromSimfile(cache_file_path, *this, true);
+        loaderSSC.LoadFromSimfile(load_path, *this, true);
+    if (!bLoadedFromCache && load_path != cache_file_path) {
+      Reset();
+      bLoadedFromCache =
+          loaderSSC.LoadFromSimfile(cache_file_path, *this, true);
+    }
 
     // If cache loading failed entirely (e.g. stale dir cache says cache file
     // exists after it was removed), fall back to parsing source files.

@@ -1879,6 +1879,17 @@ void ScreenGameplay::BeginScreen() {
     return;
   }
 
+  // CC fork: a modfile's OnCommand runs below (BeginScreen) before the song
+  // starts, and many read GetSongBeat() right there. Until StartPlayingSong
+  // the clock still holds the menu music's beat (Red Room saw beat 5.8 and
+  // ran its beat-4 actions before its proxies existed). Put the clock where
+  // the song is about to start, like NotITG.
+  if (CCSongIsNotITG(GAMESTATE->m_pCurSong)) {
+    const float cc_start =
+        -std::max(-GAMESTATE->m_pCurSong->GetFirstSecond(), 0.0f);
+    GAMESTATE->UpdateSongPosition(cc_start, GAMESTATE->m_pCurSong->m_SongTiming);
+  }
+
   ScreenWithMenuElements::BeginScreen();
 
   SOUND->PlayOnceFromAnnouncer("gameplay intro");  // crowd cheer

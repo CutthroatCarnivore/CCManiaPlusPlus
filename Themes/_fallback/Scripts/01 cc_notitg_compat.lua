@@ -674,3 +674,27 @@ do
 		wrap(Actor, "GetGlow", function(t) return t[1], t[2], t[3], t[4] end)
 	end
 end
+
+-- CC: OpenITG/NotITG score enums used by modfiles.
+do
+	local c = {
+		TNS_NONE="TapNoteScore_None", TNS_HITMINE="TapNoteScore_HitMine", TNS_AVOIDMINE="TapNoteScore_AvoidMine",
+		TNS_MISS="TapNoteScore_Miss", TNS_BOO="TapNoteScore_W5", TNS_GOOD="TapNoteScore_W4",
+		TNS_GREAT="TapNoteScore_W3", TNS_PERFECT="TapNoteScore_W2", TNS_MARVELOUS="TapNoteScore_W1",
+		HNS_NONE="HoldNoteScore_None", HNS_NG="HoldNoteScore_LetGo", HNS_OK="HoldNoteScore_Held",
+	}
+	for k, v in pairs(c) do if rawget(_G, k) == nil then rawset(_G, k, v) end end
+end
+
+-- CC: NotITG draw-distance metric names map onto ITGmania's.
+do
+	local TM = rawget(_G, "ThemeManager")
+	if type(TM) == "table" and type(TM.GetMetric) == "function" then
+		local orig = TM.GetMetric
+		local map = { StopDrawingAtPixels = "DrawDistanceBeforeTargetsPixels", StartDrawingAtPixels = "DrawDistanceAfterTargetsPixels" }
+		TM.GetMetric = function(self, group, name)
+			if group == "Player" and map[name] then name = map[name] end
+			return orig(self, group, name)
+		end
+	end
+end

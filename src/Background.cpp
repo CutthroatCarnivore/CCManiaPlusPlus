@@ -864,7 +864,9 @@ void BackgroundImpl::Layer::UpdateCurBGChange(
 
     m_pCurrentBGA->SetUpdateRate(change.m_fRate);
 
-    m_pCurrentBGA->InitState();
+    // CC fork: NotITG keeps what a background's InitCommand set up (queued
+    // commands, hidden frames); ITGmania's InitState would wipe it.
+    if (!CCSongIsNotITG(pSong)) m_pCurrentBGA->InitState();
     m_pCurrentBGA->PlayCommand("On");
     m_pCurrentBGA->PlayCommand("GainFocus");
 

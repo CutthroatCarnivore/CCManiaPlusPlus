@@ -65,6 +65,8 @@
   X(BEATSIZE, "beatsize") \
   X(CENTEREDPATH, "centeredpath") \
   X(CENTERED2, "centered2") \
+  X(COLTWIRL, "cc_coltwirl") \
+  X(COLROLL, "cc_colroll") \
   X(ORIENT, "orient") \
   X(ORIENTOFFSET, "orientoffset") \
   X(CONFUSIONZOFFSET, "confusionzoffset") \

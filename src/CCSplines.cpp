@@ -106,3 +106,88 @@ float CCSplineEval(int pn, int type, int column, float y_offset_px) {
                  (2.0f * v0 - 5.0f * v1 + 4.0f * v2 - v3) * t2 +
                  (-v0 + 3.0f * v1 - 3.0f * v2 + v3) * t3);
 }
+
+// Gradients -----------------------------------------------------------------
+namespace {
+constexpr int kGradPoints = 64;
+struct Gradient {
+  int num = 0;
+  float off[kGradPoints] = {};
+  float col[kGradPoints][4] = {};
+};
+Gradient g_grad[kPlayers][NUM_CCGR][kCols];
+bool g_grad_any[kPlayers] = {false, false};
+
+template <typename F>
+void ForCols(int column, F f) {
+  const int c0 = column < 0 ? 0 : column, c1 = column < 0 ? kCols - 1 : column;
+  for (int c = c0; c <= std::min(c1, kCols - 1); ++c) f(c);
+}
+bool GradOk(int pn, int type) {
+  return pn >= 0 && pn < kPlayers && type >= 0 && type < NUM_CCGR;
+}
+}  // namespace
+
+void CCGradientSetNum(int pn, int type, int column, int num) {
+  if (!GradOk(pn, type)) return;
+  num = std::clamp(num, 0, kGradPoints);
+  ForCols(column, [&](int c) {
+    Gradient& g = g_grad[pn][type][c];
+    for (int i = g.num; i < num; ++i) {
+      g.off[i] = 0;
+      g.col[i][0] = g.col[i][1] = g.col[i][2] = g.col[i][3] = 1;
+    }
+    g.num = num;
+  });
+  if (num > 0) g_grad_any[pn] = true;
+}
+
+void CCGradientSetPoint(int pn, int type, int point, int column, float offset) {
+  if (!GradOk(pn, type) || point < 0 || point >= kGradPoints) return;
+  ForCols(column, [&](int c) {
+    Gradient& g = g_grad[pn][type][c];
+    if (point >= g.num) CCGradientSetNum(pn, type, c, point + 1);
+    g.off[point] = offset;
+  });
+}
+
+void CCGradientSetColor(int pn, int type, int point, int column, float r,
+                        float g, float b, float a) {
+  if (!GradOk(pn, type) || point < 0 || point >= kGradPoints) return;
+  ForCols(column, [&](int c) {
+    Gradient& gr = g_grad[pn][type][c];
+    if (point >= gr.num) CCGradientSetNum(pn, type, c, point + 1);
+    gr.col[point][0] = r; gr.col[point][1] = g;
+    gr.col[point][2] = b; gr.col[point][3] = a;
+  });
+}
+
+bool CCGradientEval(int pn, int type, int column, float y_offset_px,
+                    float out[4]) {
+  if (!GradOk(pn, type) || !g_grad_any[pn]) return false;
+  if (column < 0 || column >= kCols) column = 0;
+  const Gradient& g = g_grad[pn][type][column];
+  if (g.num <= 0) return false;
+  const float x = y_offset_px / 64.0f;
+  // Points are expected in increasing offset order (as NotITG modfiles set them).
+  int lo = -1, hi = -1;
+  for (int i = 0; i < g.num; ++i) {
+    if (g.off[i] <= x && (lo < 0 || g.off[i] >= g.off[lo])) lo = i;
+    if (g.off[i] >= x && (hi < 0 || g.off[i] <= g.off[hi])) hi = i;
+  }
+  if (lo < 0) lo = hi;
+  if (hi < 0) hi = lo;
+  const float span = g.off[hi] - g.off[lo];
+  const float t = span > 1e-6f ? (x - g.off[lo]) / span : 0.0f;
+  for (int k = 0; k < 4; ++k)
+    out[k] = g.col[lo][k] + (g.col[hi][k] - g.col[lo][k]) * t;
+  return true;
+}
+
+void CCGradientResetAll() {
+  for (int p = 0; p < kPlayers; ++p) {
+    for (int t = 0; t < NUM_CCGR; ++t)
+      for (int c = 0; c < kCols; ++c) g_grad[p][t][c].num = 0;
+    g_grad_any[p] = false;
+  }
+}

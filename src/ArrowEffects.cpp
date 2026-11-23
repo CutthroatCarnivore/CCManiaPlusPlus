@@ -1059,8 +1059,10 @@ float ArrowEffects::GetRotationX(
       curr_options->m_fConfusionX[iCol] != 0) {
     fRotation += ReceptorGetRotationX(pPlayerState, iCol);
   }
-  if (fEffects[PlayerOptions::EFFECT_ROLL] != 0 && !bIsHoldCap) {
-    fRotation += fEffects[PlayerOptions::EFFECT_ROLL] * fYOffset / 2;
+  const float cc_roll = fEffects[PlayerOptions::EFFECT_ROLL] +
+      curr_options->m_fCCCol[CCMOD_COLROLL][(iCol >= 0 && iCol < CC_MAX_COLS) ? iCol : 0];
+  if (cc_roll != 0 && !bIsHoldCap) {  // CC fork: + per-column roll ("roll0")
+    fRotation += cc_roll * fYOffset / 2;
   }
   return fRotation;
 }
@@ -1074,8 +1076,11 @@ float ArrowEffects::GetRotationY(
       curr_options->m_fConfusionY[iCol] != 0) {
     fRotation += ReceptorGetRotationY(pPlayerState, iCol);
   }
-  if (fEffects[PlayerOptions::EFFECT_TWIRL] != 0) {
-    fRotation += fEffects[PlayerOptions::EFFECT_TWIRL] * fYOffset / 2;
+  {  // CC fork: NotITG per-column twirl ("twirl0") adds to the global one
+    const int c = (iCol >= 0 && iCol < CC_MAX_COLS) ? iCol : 0;
+    const float tw = fEffects[PlayerOptions::EFFECT_TWIRL] +
+                     curr_options->m_fCCCol[CCMOD_COLTWIRL][c];
+    if (tw != 0) fRotation += tw * fYOffset / 2;
   }
   return fRotation;
 }

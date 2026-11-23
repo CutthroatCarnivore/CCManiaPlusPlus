@@ -1574,14 +1574,25 @@ void NoteDisplay::DrawActor(
     pActor->SetSkewY(sk.y);
   }
   // [AJ] this two lines (and how they're handled) piss off many people:
-  if (cc_spline_alpha < 1.0f) {  // CC fork: NotITG stealth spline
+  {
     RageColor d = diffuse;
-    d.a *= cc_spline_alpha;
+    if (cc_spline_alpha < 1.0f) d.a *= cc_spline_alpha;  // CC fork: stealth spline
+    float gc[4];
+    const int cc_pn = static_cast<int>(m_pPlayerState->m_PlayerNumber);
+    if (CCGradientEval(cc_pn, CCGR_ARROW, column_args.column, fYOffset, gc)) {
+      d.r *= gc[0]; d.g *= gc[1]; d.b *= gc[2]; d.a *= gc[3];  // arrow gradient
+    }
     pActor->SetDiffuse(d);
-  } else {
-    pActor->SetDiffuse(diffuse);
   }
-  pActor->SetGlow(glow);
+  {
+    RageColor gl = glow;
+    float gc[4];
+    if (CCGradientEval(static_cast<int>(m_pPlayerState->m_PlayerNumber), CCGR_STEALTH,
+                       column_args.column, fYOffset, gc)) {
+      gl.r = gc[0]; gl.g = gc[1]; gl.b = gc[2];  // stealth gradient tints the fade
+    }
+    pActor->SetGlow(gl);
+  }
 
   bool bNeedsTranslate =
       (bIsAddition &&
@@ -1815,6 +1826,11 @@ static void CCDrawArrowPath(
     RageSpriteVertex sv;
     sv.p = pos;
     sv.c = RageColor(1, 1, 1, alpha);
+    {
+      float gc[4];
+      if (CCGradientEval(static_cast<int>(ps->m_PlayerNumber), CCGR_PATH, col, y, gc))
+        sv.c = RageColor(gc[0], gc[1], gc[2], alpha * gc[3]);
+    }
     sv.t = RageVector2(0, 0);
     v.push_back(sv);
   }

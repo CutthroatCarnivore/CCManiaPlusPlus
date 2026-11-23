@@ -3858,6 +3858,23 @@ class LunaPlayer : public Luna<Player> {
   CC_SPLINE_METHODS(Tiny, CCSP_TINY)
 #undef CC_SPLINE_METHODS
   static int NoClearSplines(T* p, lua_State* L) { COMMON_RETURN_SELF; }
+  // CC fork: NotITG arrow/stealth/path gradients
+  static int CCPn(T* p) {
+    const PlayerState* ps = p->GetPlayerState();
+    return ps ? static_cast<int>(ps->m_PlayerNumber) : -1;
+  }
+#define CC_GRADIENT_METHODS(Name, Type) \
+  static int SetNum##Name##GradientPoints(T* p, lua_State* L) { \
+    CCGradientSetNum(CCPn(p), Type, IArg(1), IArg(2)); COMMON_RETURN_SELF; } \
+  static int Set##Name##GradientPoint(T* p, lua_State* L) { \
+    CCGradientSetPoint(CCPn(p), Type, IArg(1), IArg(2), FArg(3)); COMMON_RETURN_SELF; } \
+  static int Set##Name##GradientColor(T* p, lua_State* L) { \
+    CCGradientSetColor(CCPn(p), Type, IArg(1), IArg(2), FArg(3), FArg(4), FArg(5), \
+                       lua_isnumber(L, 6) ? FArg(6) : 1.0f); COMMON_RETURN_SELF; }
+  CC_GRADIENT_METHODS(Arrow, CCGR_ARROW)
+  CC_GRADIENT_METHODS(Stealth, CCGR_STEALTH)
+  CC_GRADIENT_METHODS(Path, CCGR_PATH)
+#undef CC_GRADIENT_METHODS
   static int ClearHiddenRegions(T* p, lua_State* L) {
     if (p->CCGetNoteField()) {
       p->CCGetNoteField()->m_CCHiddenRegions.clear();
@@ -3903,6 +3920,15 @@ class LunaPlayer : public Luna<Player> {
     ADD_METHOD(ResetStealthSplines);
     ADD_METHOD(ResetTinySplines);
     ADD_METHOD(NoClearSplines);
+    ADD_METHOD(SetNumArrowGradientPoints);
+    ADD_METHOD(SetArrowGradientPoint);
+    ADD_METHOD(SetArrowGradientColor);
+    ADD_METHOD(SetNumStealthGradientPoints);
+    ADD_METHOD(SetStealthGradientPoint);
+    ADD_METHOD(SetStealthGradientColor);
+    ADD_METHOD(SetNumPathGradientPoints);
+    ADD_METHOD(SetPathGradientPoint);
+    ADD_METHOD(SetPathGradientColor);
     ADD_METHOD(SetHiddenRegions);
     ADD_METHOD(ClearHiddenRegions);
     ADD_METHOD(SetFarDist);

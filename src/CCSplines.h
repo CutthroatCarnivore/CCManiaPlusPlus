@@ -25,4 +25,17 @@ bool CCSplineAny(int pn);
 // Value of a spline at an arrow's y offset (pixels); 0 when unset.
 float CCSplineEval(int pn, int type, int column, float y_offset_px);
 
+
+// CC fork: NotITG arrow / stealth / path gradients (Player:SetArrowGradientPoint
+// etc.). Offsets are in arrows from the receptors (1 = 64 px); colors 0-1.
+enum CCGradientType { CCGR_ARROW, CCGR_STEALTH, CCGR_PATH, NUM_CCGR };
+void CCGradientSetNum(int pn, int type, int column, int num);
+void CCGradientSetPoint(int pn, int type, int point, int column, float offset);
+void CCGradientSetColor(int pn, int type, int point, int column, float r,
+                        float g, float b, float a);
+// Fills rgba and returns true when the column has a gradient.
+bool CCGradientEval(int pn, int type, int column, float y_offset_px,
+                    float out_rgba[4]);
+void CCGradientResetAll();
+
 #endif

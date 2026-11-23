@@ -910,7 +910,11 @@ bool PlayerOptions::FromOneModString(
     }
     size_t d = sBit.find_last_not_of("0123456789");
     if (d != std::string::npos && d + 1 < sBit.size()) {
-      cc = CCModFromName(sBit.substr(0, d + 1));
+      std::string base = sBit.substr(0, d + 1);
+      // Per-column forms of stock mods that ITGmania only has globally.
+      if (base == "twirl") base = "cc_coltwirl";
+      else if (base == "roll") base = "cc_colroll";
+      cc = CCModFromName(base);
       if (cc >= 0) {
         int col = StringToInt(sBit.substr(d + 1)) - CCColBase();
         if (col >= 0 && col < CC_MAX_COLS) {

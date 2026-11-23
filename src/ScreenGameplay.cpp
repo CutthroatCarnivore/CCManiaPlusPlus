@@ -1365,6 +1365,7 @@ void ScreenGameplay::ReloadCurrentSong() {
 
 void ScreenGameplay::LoadNextSong() {
   CCSplineResetAll();  // CC fork: NotITG splines belong to one song
+  CCGradientResetAll();
   GAMESTATE->ResetMusicStatistics();
 
   FOREACH_EnabledPlayerInfo(m_vPlayerInfo, pi) {

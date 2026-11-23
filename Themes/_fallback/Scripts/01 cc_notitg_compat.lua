@@ -698,3 +698,12 @@ do
 		end
 	end
 end
+
+-- CC: NotITG GameState:GetCurBPM() returns the current BPM as a number.
+if type(GameState) == "table" and rawget(GameState, "GetCurBPM") == nil then
+	GameState.GetCurBPM = function(self)
+		local bps = self.GetSongBPS and self:GetSongBPS()
+		if type(bps) ~= "number" or bps <= 0 then bps = 2 end
+		return bps * 60
+	end
+end

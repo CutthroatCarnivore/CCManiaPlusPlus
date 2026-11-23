@@ -1834,8 +1834,13 @@ static void CCDrawArrowPath(
   if (alpha <= 0.001f) {
     return;
   }
-  const float width =
-      std::max(1.0f, 2.0f + 2.0f * (CCV(ARROWPATHGIRTH) + CCV(ARROWPATHWIDTH)));
+  // Measured against NotITG (conformance test 20): a plain path is 1 px;
+  // every 100% of arrowpathwidth or arrowpathgirth adds 1 px. arrowpathwidth
+  // is a GL line width, so NotITG caps it at 16 px (10000% still draws a thin
+  // line); arrowpathgirth is not capped.
+  const float width = std::max(
+      1.0f, 1.0f + std::min(CCV(ARROWPATHWIDTH), 15.0f) +
+                std::max(CCV(ARROWPATHGIRTH), 0.0f));
   // draw_pixels_after_targets is the (negative) stretch past the receptors,
   // draw_pixels_before_targets the (positive) stretch the arrows come from.
   const float y_far = field.draw_pixels_before_targets * (1.0f + CCV(ARROWPATHDRAWSIZE));

@@ -995,8 +995,13 @@ bool PlayerOptions::FromOneModString(
   }
 
   else if (sBit == "clearall") {
+    // CC fork: a NotITG modfile that clears its mods every frame keeps the
+    // player's own noteskin instead of switching to the default one.
+    const std::string cc_noteskin = m_sNoteSkin;
     Init();
-    m_sNoteSkin = NOTESKIN->GetDefaultNoteSkinName();
+    m_sNoteSkin = g_bCCNotITGColumns && !cc_noteskin.empty()
+                      ? cc_noteskin
+                      : NOTESKIN->GetDefaultNoteSkinName();
   } else if (sBit == "resetspeed") {
     /* level is set to the values from Init() because all speed related
        fields are being reset to initial values, and they each have different

@@ -741,7 +741,16 @@ void GameCommand::ApplySelf(const std::vector<PlayerNumber>& vpns) const {
   }
   if (m_sPreferredModifiers != "") {
     for (const PlayerNumber& pn : vpns) {
-      GAMESTATE->ApplyPreferredModifiers(pn, m_sPreferredModifiers);
+      if (g_bCCNotITGColumns) {
+        // CC fork: in a NotITG modfile, GAMESTATE:ApplyGameCommand('mod,...')
+        // sets the values the mods approach (NotITG semantics), so approach
+        // speeds like *0.5 work instead of every mod snapping instantly, and
+        // the player's own saved options are never touched by the modfile.
+        GAMESTATE->m_pPlayerState[pn]->m_PlayerOptions.FromString(
+            ModsLevel_Song, m_sPreferredModifiers);
+      } else {
+        GAMESTATE->ApplyPreferredModifiers(pn, m_sPreferredModifiers);
+      }
     }
   }
   if (m_sStageModifiers != "") {

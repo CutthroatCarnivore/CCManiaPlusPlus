@@ -63,9 +63,36 @@ REGISTER_ACTOR_CLASS(ActorMultiVertex);
 
 // CC fork: NotITG "Polygon" actors are ActorMultiVertex here, with NotITG's
 // vertex API added below (SetVertexPosition etc., 0-based indices).
+// NotITG draw mode names (XML DrawMode="..." and Polygon:SetDrawMode).
+static bool CCParseDrawMode(std::string s, DrawMode& out) {
+  MakeLower(s);
+  if (s == "quads" || s == "quad") out = DrawMode_Quads;
+  else if (s == "quadstrip" || s == "quadstrips") out = DrawMode_QuadStrip;
+  else if (s == "fan" || s == "fans" || s == "trianglefan" ||
+           s == "trianglefans" || s == "polygon")
+    out = DrawMode_Fan;
+  else if (s == "strip" || s == "strips" || s == "trianglestrip" ||
+           s == "trianglestrips")
+    out = DrawMode_Strip;
+  else if (s == "triangles" || s == "triangle") out = DrawMode_Triangles;
+  else if (s == "linestrip" || s == "linestrips" || s == "lines" ||
+           s == "line" || s == "lineloop")
+    out = DrawMode_LineStrip;
+  else return false;
+  return true;
+}
+
+// A Polygon that never sets a draw mode still draws (as quads) instead of
+// being skipped as DrawMode_Invalid.
+static Actor* CCCreatePolygon() {
+  ActorMultiVertex* p = new ActorMultiVertex;
+  p->SetDrawState(DrawMode_Quads, 0, -1);
+  return p;
+}
+
 struct CCRegisterPolygon {
   CCRegisterPolygon() {
-    ActorUtil::Register("Polygon", CreateActor<ActorMultiVertex>);
+    ActorUtil::Register("Polygon", CCCreatePolygon);
   }
 };
 static CCRegisterPolygon g_CCRegisterPolygon;
@@ -119,6 +146,19 @@ void ActorMultiVertex::LoadFromNode(const XNode* Node) {
   }
   if (!path.empty()) {
     LoadFromTexture(path);
+  }
+
+  // CC fork: NotITG Polygon attributes Vertices="N" DrawMode="quads".
+  int num_verts = 0;
+  if (Node->GetAttrValue("Vertices", num_verts) && num_verts > 0 &&
+      num_verts <= 65536) {
+    SetNumVertices(static_cast<size_t>(num_verts));
+  }
+  std::string draw_mode;
+  DrawMode dm = DrawMode_Quads;
+  if (Node->GetAttrValue("DrawMode", draw_mode) &&
+      CCParseDrawMode(draw_mode, dm)) {
+    SetDrawState(dm, 0, -1);
   }
 
   Actor::LoadFromNode(Node);
@@ -667,15 +707,8 @@ class LunaActorMultiVertex : public Luna<ActorMultiVertex> {
     COMMON_RETURN_SELF;
   }
   static int SetDrawMode(T* p, lua_State* L) {
-    std::string s = SArg(1);
-    MakeLower(s);
     DrawMode dm = DrawMode_Triangles;
-    if (s == "quads") dm = DrawMode_Quads;
-    else if (s == "quadstrip") dm = DrawMode_QuadStrip;
-    else if (s == "fan" || s == "trianglefan") dm = DrawMode_Fan;
-    else if (s == "strip" || s == "trianglestrip") dm = DrawMode_Strip;
-    else if (s == "linestrip" || s == "lines" || s == "line" || s == "lineloop")
-      dm = DrawMode_LineStrip;
+    CCParseDrawMode(SArg(1), dm);
     p->SetDrawState(dm, 0, -1);
     COMMON_RETURN_SELF;
   }

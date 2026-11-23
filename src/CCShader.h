@@ -17,7 +17,9 @@ class CCShader {
  public:
   ~CCShader();
   void SetFiles(const std::string& sVertFile, const std::string& sFragFile);
-  void SetUniform(const std::string& sName, const std::vector<float>& v);
+  // iComps > 0: v holds an array of iComps-wide elements (uniformNfv).
+  void SetUniform(const std::string& sName, const std::vector<float>& v,
+                  int iComps = 0);
   void SetUniformInt(const std::string& sName, int i);
   void SetUniformTexture(const std::string& sName, RageTexture* pTex);
   // Bind for drawing pActor (pTex = the actor's texture, may be null).
@@ -37,6 +39,7 @@ class CCShader {
   bool m_bFailed = false;
   uintptr_t m_hPrevious = 0;
   std::map<std::string, std::vector<float>> m_Uniforms;
+  std::map<std::string, int> m_UniformComps;
   std::map<std::string, int> m_IntUniforms;
   std::map<std::string, RageTexture*> m_TexUniforms;
 };

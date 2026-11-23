@@ -1,7 +1,9 @@
 #include "global.h"
 #include "CCShader.h"
 
+#include <algorithm>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "LuaBinding.h"
@@ -34,8 +36,14 @@ void CCShader::SetFiles(const std::string& sVert, const std::string& sFrag) {
   m_bFailed = false;
 }
 
-void CCShader::SetUniform(const std::string& sName, const std::vector<float>& v) {
+void CCShader::SetUniform(const std::string& sName, const std::vector<float>& v,
+                          int iComps) {
   m_Uniforms[sName] = v;
+  if (iComps > 0) {
+    m_UniformComps[sName] = iComps;
+  } else {
+    m_UniformComps.erase(sName);
+  }
 }
 void CCShader::SetUniformInt(const std::string& sName, int i) {
   m_IntUniforms[sName] = i;
@@ -74,8 +82,19 @@ void CCShader::Begin(RageTexture* pTex) {
   DISPLAY->CCSetUniform(m_hProgram, "imageSize", 2, is);
   DISPLAY->CCSetUniformInt(m_hProgram, "sampler0", 0);
   for (const auto& u : m_Uniforms) {
-    DISPLAY->CCSetUniform(
-        m_hProgram, u.first, static_cast<int>(u.second.size()), u.second.data());
+    const auto comps_it = m_UniformComps.find(u.first);
+    const int size = static_cast<int>(u.second.size());
+    if (comps_it == m_UniformComps.end() || size <= comps_it->second) {
+      DISPLAY->CCSetUniform(m_hProgram, u.first, size, u.second.data());
+      continue;
+    }
+    // Uniform array: set each element by its own location. Indices past the
+    // shader's declared array size have no location and are skipped.
+    const int comps = comps_it->second;
+    for (int i = 0; i * comps + comps <= size; ++i) {
+      DISPLAY->CCSetUniform(m_hProgram, u.first + "[" + std::to_string(i) + "]",
+                            comps, u.second.data() + i * comps);
+    }
   }
   for (const auto& u : m_IntUniforms) {
     DISPLAY->CCSetUniformInt(m_hProgram, u.first, u.second);
@@ -115,17 +134,20 @@ class LunaCCShader : public Luna<CCShader> {
     p->SetUniformInt(SArg(1), IArg(2));
     COMMON_RETURN_SELF;
   }
-  // uniformNfv(name, {..}) -- first N values of the table (arrays: TODO)
+  // uniformNfv(name, {..}) -- a flat table of floats; more than N values
+  // fills a uniform array (vecN name[k]) element by element.
   static int SetUniformFV(T* p, lua_State* L, int n) {
     std::vector<float> v;
     if (lua_istable(L, 2)) {
-      for (int i = 1; i <= n; ++i) {
+      const int len = static_cast<int>(lua_objlen(L, 2));
+      const int total = std::max(n, (len / n) * n);
+      for (int i = 1; i <= total; ++i) {
         lua_rawgeti(L, 2, i);
         v.push_back(static_cast<float>(lua_tonumber(L, -1)));
         lua_pop(L, 1);
       }
     }
-    p->SetUniform(SArg(1), v);
+    p->SetUniform(SArg(1), v, n);
     COMMON_RETURN_SELF;
   }
   static int uniform1fv(T* p, lua_State* L) { return SetUniformFV(p, L, 1); }

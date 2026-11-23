@@ -60,6 +60,29 @@ end
 if not string.gfind then string.gfind = string.gmatch end
 if not math.mod then math.mod = math.fmod end
 
+-- NotITG's print() writes to its log; ITGmania's goes to stdout where nobody sees modfile
+-- diagnostics. Route it to the log (capped so a chatty modfile can't flood it).
+do
+	local n = 0
+	print = function(...)
+		if n >= 300 then return end
+		n = n + 1
+		local t = {}
+		for i = 1, select("#", ...) do t[#t + 1] = tostring((select(i, ...))) end
+		Trace("CC-PRINT " .. table.concat(t, " "))
+	end
+end
+
+-- CC: this build ships without the Lua os library; give modfiles a minimal one.
+if not os then
+	os = {
+		clock = function() return (GetTimeSinceStart and GetTimeSinceStart()) or 0 end,
+		time = function() return 0 end,
+		date = function() return "" end,
+		getenv = function() return nil end,
+	}
+end
+
 local seen = {}
 local function note(cls, name)
 	local k = cls .. ":" .. name
@@ -618,5 +641,36 @@ if GameState and CCSleepingPlayer then
 				return n
 			end
 		end
+	end
+end
+
+-- CC: NotITG accepts all-lowercase method names on actors. Alias every
+-- CamelCase method that has no lowercase twin, and make getdiffuse return r,g,b,a.
+do
+	local classes = {"Actor","ActorFrame","ActorFrameTexture","ActorProxy","Sprite","BitmapText","Model","ActorScroller","ActorMultiVertex","Quad","NoteField","Player"}
+	for _, cn in ipairs(classes) do
+		local c = rawget(_G, cn)
+		if type(c) == "table" then
+			local add = {}
+			for k, v in pairs(c) do
+				if type(k) == "string" and type(v) == "function" then
+					local lk = string.lower(k)
+					if lk ~= k and rawget(c, lk) == nil then add[lk] = v end
+				end
+			end
+			for k, v in pairs(add) do c[k] = v end
+		end
+	end
+	local function wrap(c, name, rgba)
+		local f = rawget(c, name)
+		if f then c[string.lower(name)] = function(self, ...)
+			local t = f(self, ...)
+			if type(t) == "table" then return rgba(t) end
+			return t
+		end end
+	end
+	if type(Actor) == "table" then
+		wrap(Actor, "GetDiffuse", function(t) return t[1], t[2], t[3], t[4] end)
+		wrap(Actor, "GetGlow", function(t) return t[1], t[2], t[3], t[4] end)
 	end
 end

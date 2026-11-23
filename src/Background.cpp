@@ -787,7 +787,14 @@ void BackgroundImpl::Layer::UpdateCurBGChange(
                           : GAMESTATE->m_SongOptions.GetCurrent().m_fMusicRate;
 
   // Find the BGSegment we're in
-  const int i = FindBGSegmentForBeat(beat_info.beat);
+  // CC fork: a change that starts at beat <= 0 is active from load, so its On
+  // command (NotITG modfiles set globals there) runs before the first mod update.
+  float fSegBeat = beat_info.beat;
+  if (m_iCurBGChangeIndex == -1 && fSegBeat < m_aBGChanges[0].m_fStartBeat &&
+      m_aBGChanges[0].m_fStartBeat <= 0.0f) {
+    fSegBeat = m_aBGChanges[0].m_fStartBeat;
+  }
+  const int i = FindBGSegmentForBeat(fSegBeat);
 
   float fDeltaTime = fCurrentTime - fLastMusicSeconds;
   if (i != -1 && i != m_iCurBGChangeIndex)  // we're changing backgrounds

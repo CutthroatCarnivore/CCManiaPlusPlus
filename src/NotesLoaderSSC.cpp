@@ -1049,7 +1049,7 @@ bool SSCLoader::LoadFromSimfile(
             parser_helper.song_tag_handlers.find(sValueName);
         if (handler != parser_helper.song_tag_handlers.end()) {
           handler->second(reused_song_info);
-        } else if (Left(sValueName, strlen("BGCHANGES")) == "BGCHANGES") {
+        } else if (Left(sValueName, strlen("BGCHANGES")) == "BGCHANGES" || sValueName == "BETTERBGCHANGES") {
           SetBGChanges(reused_song_info);
         }
         // This tag will get us to the next section.

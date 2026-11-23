@@ -1096,7 +1096,7 @@ bool SMLoader::LoadFromSimfile(
        * heuristically splitting other formats that *don't* natively support
        * #SUBTITLE. */
       handler->second(reused_song_info);
-    } else if (Left(sValueName, strlen("BGCHANGES")) == "BGCHANGES") {
+    } else if (Left(sValueName, strlen("BGCHANGES")) == "BGCHANGES" || sValueName == "BETTERBGCHANGES") {
       SMSetBGChanges(reused_song_info);
     } else if (sValueName == "NOTES" || sValueName == "NOTES2") {
       if (iNumParams < 7) {

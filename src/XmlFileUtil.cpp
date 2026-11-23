@@ -1,6 +1,8 @@
 #include "XmlFileUtil.h"
+#include "RageLog.h"
 
 #include <cctype>
+#include "RageLog.h"
 #include <cstddef>
 #include <map>
 #include <string>
@@ -934,6 +936,7 @@ bool XmlFileUtil::EvalLegacyCondition(
   if (LuaHelpers::RunExpression(L, sExpr, sFile)) {
     bOut = lua_toboolean(L, -1) != 0;
   }
+  if (getenv("CC_TRACE_CMDS")) LOG->Trace("CC-CMD condition=%d '%s' in %s", (int)bOut, sExpr.substr(0, 50).c_str(), sFile.c_str());
   lua_settop(L, 0);
   LUA->Release(L);
   return true;

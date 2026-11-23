@@ -7,6 +7,7 @@ end
 return Def.ActorFrame{
   OnCommand=function(self) self:sleep(1):queuecommand("Go") end,
   GoCommand=function(self)
+    Trace("CCTEST os=" .. tostring(os) .. " clock=" .. tostring(os and os.clock and os.clock()) .. " typeclock=" .. type(os and os.clock) .. " getn=" .. tostring(table.getn))
     local want = (readfile("Save/cc_test_song.txt") or ""):gsub("%s+$","")
     local song
     for _, s in ipairs(SONGMAN:GetAllSongs()) do
@@ -24,6 +25,13 @@ return Def.ActorFrame{
     for _, st in ipairs(steps) do if st:GetDifficulty() == "Difficulty_Hard" then pick = st end end
     GAMESTATE:SetCurrentSteps(PLAYER_1, pick)
     Trace("CCTEST: steps "..tostring(pick and pick:GetDifficulty()))
+    local skin = (lua.ReadFile("/Save/cc_test_noteskin.txt") or "cutthroat-carnivore-inferno-cycle"):gsub("%s+$", "")
+    if NOTESKIN:DoesNoteSkinExist(skin) then
+      GAMESTATE:GetPlayerState(PLAYER_1):GetPlayerOptions("ModsLevel_Preferred"):NoteSkin(skin)
+      GAMESTATE:GetPlayerState(PLAYER_1):GetPlayerOptions("ModsLevel_Stage"):NoteSkin(skin)
+      GAMESTATE:GetPlayerState(PLAYER_1):GetPlayerOptions("ModsLevel_Song"):NoteSkin(skin)
+    end
+    Trace("CCTEST: noteskin "..skin.." exists="..tostring(NOTESKIN:DoesNoteSkinExist(skin)))
     SCREENMAN:SetNewScreen("ScreenGameplay")
   end
 }

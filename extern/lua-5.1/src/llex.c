@@ -432,7 +432,7 @@ static int llex (LexState *ls, SemInfo *seminfo) {
            * OpenITG/NotITG scripts that use `cmd` as a variable still parse. */
           if (ts->tsv.reserved > 0 &&
               !(ts->tsv.reserved - 1 + FIRST_RESERVED == TK_CMD &&
-                ls->current != '('))  /* reserved word? */
+                (ls->current != '(' || ls->t.token == ':' || ls->t.token == '.')))  /* reserved word? */
             return ts->tsv.reserved - 1 + FIRST_RESERVED;
           else {
             seminfo->ts = ts;

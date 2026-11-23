@@ -940,6 +940,7 @@ void LuaHelpers::ParseCommandList(
   } else if (sCommands.size() > 0 && sCommands[0] == '%') {
     sLuaFunction = "return ";
     sLuaFunction.append(sCommands.begin() + 1, sCommands.end());
+    if (getenv("CC_TRACE_CMDS")) LOG->Trace("CC-CMD compile%% '%s' (%s)", sName.c_str(), sCommands.substr(0, 60).c_str());
   } else {
     Commands cmds;
     ParseCommands(sCommands, cmds, bLegacy);

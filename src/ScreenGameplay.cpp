@@ -757,7 +757,11 @@ void ScreenGameplay::Init() {
       left_marge = margins[pi->m_pn].left;
       right_marge = margins[pi->m_pn].right;
       field_space = screen_space - left_marge - right_marge;
-      if (Center1Player() ||
+      // CC fork: NotITG never centers a single player, and mod charts are
+      // laid out around P1's left-side spot, so keep it there for them.
+      const bool cc_center1 =
+          Center1Player() && !CCSongIsNotITG(GAMESTATE->m_pCurSong);
+      if (cc_center1 ||
           style->m_StyleType == StyleType_TwoPlayersSharedSides ||
           (style_width > field_space &&
            GAMESTATE->GetNumPlayersEnabled() == 1 &&

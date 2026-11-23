@@ -1610,6 +1610,16 @@ bool ArrowEffects::NeedZBuffer() {
   return false;
 }
 
+// CC fork: side by side (conformance test 14), NotITG grows arrows linearly
+// for negative tiny ("-100 tiny" = 1.5x, "-400 tiny" = 3x) instead of
+// ITGmania's 0.5^tiny (2x, 16x), which buried the screen in giant arrows
+// (One Last Time, FUEL TANK).
+extern bool g_bCCNotITGColumns;  // PlayerOptions.cpp
+static float CCTinyZoom(float t) {
+  if (g_bCCNotITGColumns && t < 0) return 1.0f - 0.5f * t;
+  return std::pow(0.5f, t);
+}
+
 float ArrowEffects::GetZoom(
     const PlayerState* pPlayerState, float fYOffset, int iCol) {
   float fZoom = 1.0f;
@@ -1623,11 +1633,11 @@ float ArrowEffects::GetZoom(
 
   float fTinyPercent = curr_options->m_fEffects[PlayerOptions::EFFECT_TINY];
   if (fTinyPercent != 0) {
-    fTinyPercent = std::pow(0.5f, fTinyPercent);
+    fTinyPercent = CCTinyZoom(fTinyPercent);
     fZoom *= fTinyPercent;
   }
   if (curr_options->m_fTiny[iCol] != 0) {
-    fTinyPercent = std::pow(0.5f, curr_options->m_fTiny[iCol]);
+    fTinyPercent = CCTinyZoom(curr_options->m_fTiny[iCol]);
     fZoom *= fTinyPercent;
   }
   return fZoom;

@@ -888,6 +888,22 @@ bool PlayerOptions::FromOneModString(
 
   sBit = asParts.back();
 
+  // CC fork: side by side, NotITG ignores per-column mod names written with
+  // capitals ("Tiny0" does nothing there, "tiny0" works), and mod charts rely
+  // on that (One Last Time eases "Tiny0" to -1500%). Global names like
+  // "Flip" stay case-insensitive.
+  if (g_bCCNotITGColumns && !sBit.empty() && isdigit(sBit.back())) {
+    std::string orig = sOneMod;
+    Trim(orig);
+    const size_t sp = orig.find_last_of(' ');
+    if (sp != std::string::npos) orig = orig.substr(sp + 1);
+    for (char ch : orig) {
+      if (ch >= 'A' && ch <= 'Z') {
+        return false;
+      }
+    }
+  }
+
 #define SET_FLOAT(opt)    \
   {                       \
     m_##opt = level;      \

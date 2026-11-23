@@ -219,7 +219,8 @@ void ActorFrame::BeginDraw() {
   if (m_fFOV != -1) {
     DISPLAY->CameraPushMatrix();
     DISPLAY->LoadMenuPerspective(
-        m_fFOV, SCREEN_WIDTH, SCREEN_HEIGHT, m_fVanishX, m_fVanishY);
+        m_fFOV, SCREEN_WIDTH, SCREEN_HEIGHT, m_fVanishX, m_fVanishY,
+        m_fCCFarDist);
   }
 
   if (m_bOverrideLighting) {
@@ -623,6 +624,15 @@ class LunaActorFrame : public Luna<ActorFrame> {
     p->SetVanishPoint(FArg(1), FArg(2));
     COMMON_RETURN_SELF;
   }
+  // CC fork: NotITG names
+  static int SetVanishPoint(T* p, lua_State* L) {
+    p->SetVanishPoint(FArg(1), FArg(2));
+    COMMON_RETURN_SELF;
+  }
+  static int SetFarDist(T* p, lua_State* L) {
+    p->CCSetFarDist(std::clamp(FArg(1), 1.0f, 2000000.0f));
+    COMMON_RETURN_SELF;
+  }
   static int GetChild(T* p, lua_State* L) {
     p->PushChildTable(L, SArg(1));
     return 1;
@@ -762,6 +772,8 @@ class LunaActorFrame : public Luna<ActorFrame> {
     ADD_METHOD(GetUpdateRate);
     ADD_METHOD(SetFOV);
     ADD_METHOD(vanishpoint);
+    ADD_METHOD(SetVanishPoint);  // CC fork
+    ADD_METHOD(SetFarDist);      // CC fork
     ADD_METHOD(GetChild);
     ADD_METHOD(GetChildren);
     ADD_METHOD(GetNumChildren);

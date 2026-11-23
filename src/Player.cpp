@@ -1846,9 +1846,14 @@ void Player::DrawPrimitives() {
 void Player::PushPlayerMatrix(float x, float skew, float center_y) {
   DISPLAY->CameraPushMatrix();
   DISPLAY->PushMatrix();
+  // CC fork: NotITG Player:SetFarDist also pushes the far clip plane out.
+  float far_dist = 1000.0f;
+  if (m_pNoteField && m_pNoteField->m_iCCFarDist > far_dist) {
+    far_dist = static_cast<float>(m_pNoteField->m_iCCFarDist);
+  }
   DISPLAY->LoadMenuPerspective(
       45, SCREEN_WIDTH, SCREEN_HEIGHT,
-      SCALE(skew, 0.1f, 1.0f, x, SCREEN_CENTER_X), center_y);
+      SCALE(skew, 0.1f, 1.0f, x, SCREEN_CENTER_X), center_y, far_dist);
 }
 
 void Player::PopPlayerMatrix() {

@@ -464,9 +464,11 @@ class RageDisplay {
   // Projection and View matrix stack functions.
   void CameraPushMatrix();
   void CameraPopMatrix();
+  // fFarDist: how far past the screen plane things still draw (CC fork:
+  // NotITG ActorFrame:SetFarDist / Player:SetFarDist).
   void LoadMenuPerspective(
       float fFOVDegrees, float fWidth, float fHeight, float fVanishPointX,
-      float fVanishPointY);
+      float fVanishPointY, float fFarDist = 1000.0f);
   void LoadLookAt(
       float fov, const RageVector3& Eye, const RageVector3& At,
       const RageVector3& Up);

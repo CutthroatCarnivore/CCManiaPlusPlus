@@ -107,6 +107,9 @@ class ActorFrame : public Actor {
   }
   float GetUpdateRate() { return m_fUpdateRate; }
   void SetFOV(float fFOV) { m_fFOV = fFOV; }
+  // CC fork: NotITG ActorFrame:SetFarDist -- far clip of this frame's fov
+  // perspective (3D scenes far into the screen get cut off at 1000).
+  void CCSetFarDist(float d) { m_fCCFarDist = d; }
   void SetVanishPoint(float fX, float fY) {
     m_fVanishX = fX;
     m_fVanishY = fY;
@@ -148,6 +151,7 @@ class ActorFrame : public Actor {
   // state effects
   float m_fUpdateRate;
   float m_fFOV;  // -1 = no change
+  float m_fCCFarDist = 1000.0f;
   float m_fVanishX;
   float m_fVanishY;
   /**

@@ -497,7 +497,7 @@ void RageDisplay::TextureTranslate(float x, float y) {
 
 void RageDisplay::LoadMenuPerspective(
     float fovDegrees, float fWidth, float fHeight, float fVanishPointX,
-    float fVanishPointY) {
+    float fVanishPointY, float fFarDist) {
   // fovDegrees == 0 gives ortho projection.
   if (fovDegrees == 0) {
     float left = 0, right = fWidth, bottom = fHeight, top = 0;
@@ -522,7 +522,7 @@ void RageDisplay::LoadMenuPerspective(
         (fVanishPointX + fWidth / 2) / fDistCameraFromImage,
         (fVanishPointY + fHeight / 2) / fDistCameraFromImage,
         (fVanishPointY - fHeight / 2) / fDistCameraFromImage, 1,
-        fDistCameraFromImage + 1000));
+        fDistCameraFromImage + std::max(fFarDist, 1.0f)));
 
     g_ViewStack.LoadMatrix(RageLookAt(
         -fVanishPointX + fWidth / 2, -fVanishPointY + fHeight / 2,

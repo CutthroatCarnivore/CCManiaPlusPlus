@@ -129,6 +129,7 @@ ActorMultiVertex::ActorMultiVertex(const ActorMultiVertex& cpy) : Actor(cpy) {
   _use_animation_state = cpy._use_animation_state;
   _secs_into_state = cpy._secs_into_state;
   _cur_state = cpy._cur_state;
+  m_iCCPolygonMode = cpy.m_iCCPolygonMode;
   _states = cpy._states;
 
   if (cpy._Texture != nullptr) {
@@ -297,6 +298,13 @@ void ActorMultiVertex::DrawInternal(const AMV_TweenState* TS) {
     return;
   }
 
+  // CC fork: NotITG polygon mode 1 draws only the outlines.
+  const bool cc_outline =
+      m_iCCPolygonMode == 1 && TS->_DrawMode != DrawMode_LineStrip;
+  if (cc_outline) {
+    DISPLAY->CCSetPolygonLineMode(true, TS->line_width);
+  }
+
   switch (TS->_DrawMode) {
     case DrawMode_Quads: {
       DISPLAY->DrawQuads(&TS->vertices[FirstToDraw], NumToDraw);
@@ -331,6 +339,9 @@ void ActorMultiVertex::DrawInternal(const AMV_TweenState* TS) {
       break;
   }
 
+  if (cc_outline) {
+    DISPLAY->CCSetPolygonLineMode(false, 1.0f);
+  }
   DISPLAY->SetEffectMode(EffectMode_Normal);
 }
 
@@ -713,7 +724,8 @@ class LunaActorMultiVertex : public Luna<ActorMultiVertex> {
     COMMON_RETURN_SELF;
   }
   static int SetPolygonMode(T* p, lua_State* L) {
-    // TODO(CC): NotITG wireframe/fill switch; drawn filled for now.
+    // NotITG: 0 = filled, 1 = outlines only (wireframe grids in Options).
+    p->CCSetPolygonMode(IArg(1));
     COMMON_RETURN_SELF;
   }
   // ---------------------------------------------------------------------

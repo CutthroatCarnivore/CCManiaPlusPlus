@@ -111,6 +111,9 @@ class ActorMultiVertex : public Actor {
   void SetEffectMode(EffectMode em) { _EffectMode = em; }
   void SetTextureMode(TextureMode tm) { _TextureMode = tm; }
   void SetLineWidth(float width) { AMV_DestTweenState().line_width = width; }
+  // CC fork: NotITG Polygon:SetPolygonMode (0 = filled, 1 = outlines).
+  void CCSetPolygonMode(int mode) { m_iCCPolygonMode = mode; }
+  int m_iCCPolygonMode = 0;
 
   void SetDrawState(DrawMode dm, int first, int num) {
     AMV_DestTweenState().SetDrawState(dm, first, num);

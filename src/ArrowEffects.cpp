@@ -1681,18 +1681,27 @@ RageVector3 ArrowEffects::CCZoomAxes(
   RageVector3 r(1, 1, 1);
   const int c = (iCol >= 0 && iCol < CC_MAX_COLS) ? iCol : 0;
   float t;
+  // Same curve as tiny: halves per 100%, and negative values grow linearly
+  // in a NotITG modfile (-500% tinyy is 3.5x tall, not 32x -- WILD RUSH).
   t = po.m_fCC[CCMOD_TINYX] + po.m_fCCCol[CCMOD_TINYX][c];
-  if (t != 0) r.x = std::pow(0.5f, t);
+  if (t != 0) r.x = CCTinyZoom(t);
   t = po.m_fCC[CCMOD_TINYY] + po.m_fCCCol[CCMOD_TINYY][c];
-  if (t != 0) r.y = std::pow(0.5f, t);
+  if (t != 0) r.y = CCTinyZoom(t);
   t = po.m_fCC[CCMOD_TINYZ] + po.m_fCCCol[CCMOD_TINYZ][c];
-  if (t != 0) r.z = std::pow(0.5f, t);
-  // NotITG zoom/zoomx/zoomy/zoomz: plain multipliers, 100% = normal.
-  // Global and per-column values multiply.
-  const float z = po.m_fCC[CCMOD_ZOOM] * po.m_fCCCol[CCMOD_ZOOM][c];
-  r.x *= z * po.m_fCC[CCMOD_ZOOMX] * po.m_fCCCol[CCMOD_ZOOMX][c];
-  r.y *= z * po.m_fCC[CCMOD_ZOOMY] * po.m_fCCCol[CCMOD_ZOOMY][c];
-  r.z *= z * po.m_fCC[CCMOD_ZOOMZ] * po.m_fCCCol[CCMOD_ZOOMZ][c];
+  if (t != 0) r.z = CCTinyZoom(t);
+  // NotITG zoom/zoomx/zoomy/zoomz: plain multipliers, 100% = normal. In a
+  // NotITG modfile the global values scale the whole playfield instead
+  // (Player.cpp, PlayerNoteFieldPositioner), so only per-column values size
+  // the arrows here.
+  const bool field_level = g_bCCNotITGColumns;
+  const float z = (field_level ? 1.0f : po.m_fCC[CCMOD_ZOOM]) *
+                  po.m_fCCCol[CCMOD_ZOOM][c];
+  r.x *= z * (field_level ? 1.0f : po.m_fCC[CCMOD_ZOOMX]) *
+         po.m_fCCCol[CCMOD_ZOOMX][c];
+  r.y *= z * (field_level ? 1.0f : po.m_fCC[CCMOD_ZOOMY]) *
+         po.m_fCCCol[CCMOD_ZOOMY][c];
+  r.z *= z * (field_level ? 1.0f : po.m_fCC[CCMOD_ZOOMZ]) *
+         po.m_fCCCol[CCMOD_ZOOMZ][c];
   return r;
 }
 

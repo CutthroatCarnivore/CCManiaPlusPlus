@@ -1892,7 +1892,29 @@ Player::PlayerNoteFieldPositioner::PlayerNoteFieldPositioner(
     y_offset = SCALE(tilt, 0.f, -1.f, 0.f, -20.f) * reverse_mult;
   }
   player->m_pNoteField->SetY(original_y + y_offset);
-  if (player->m_oitg_zoom_mode) {
+  if (g_bCCNotITGColumns) {
+    // CC fork: NotITG zoom/zoomx/zoomy/zoomz scale the whole playfield --
+    // column spacing, scroll distance and depth too -- around the field
+    // center, applied outside the playfield rotation, so zoomz deepens a
+    // tilted field (conformance test 23). Mini, as in OpenITG, scales x and
+    // y only.
+    player->m_pNoteField->SetZoomX(zoom);
+    player->m_pNoteField->SetZoomY(zoom);
+    player->m_pNoteField->SetZoomZ(1.0f);
+    const float z = cco.m_fCC[CCMOD_ZOOM];
+    const float zx = z * cco.m_fCC[CCMOD_ZOOMX];
+    const float zy = z * cco.m_fCC[CCMOD_ZOOMY];
+    const float zz = z * cco.m_fCC[CCMOD_ZOOMZ];
+    if (zx != 1.0f || zy != 1.0f || zz != 1.0f) {
+      // PushPlayerMatrix pushed the world matrix; the destructor pops it.
+      const float ox = player->m_pNoteField->GetX();
+      const float oy = player->m_pNoteField->GetY();
+      const float oz = 100.f * cco.m_fCC[CCMOD_PLAYERZ];
+      DISPLAY->Translate(ox, oy, oz);
+      DISPLAY->Scale(zx, zy, zz);
+      DISPLAY->Translate(-ox, -oy, -oz);
+    }
+  } else if (player->m_oitg_zoom_mode) {
     player->m_pNoteField->SetZoomX(zoom);
     player->m_pNoteField->SetZoomY(zoom);
   } else {

@@ -1914,6 +1914,12 @@ void RageDisplay_Legacy::CCSetUniformInt(uintptr_t h, const std::string& sName, 
   if (loc >= 0) glUniform1iARB(loc, i);
 }
 
+void RageDisplay_Legacy::CCSetPolygonLineMode(bool bLine, float fWidth) {
+  glPolygonMode(GL_FRONT_AND_BACK, bLine ? GL_LINE : GL_FILL);
+  // Clamped by the driver, as in NotITG (very wide lines draw at the cap).
+  glLineWidth(bLine ? std::max(1.0f, fWidth) : 1.0f);
+}
+
 void RageDisplay_Legacy::CCBindTextureUnit(int iUnit, uintptr_t iTexHandle) {
   if (!GLEW_ARB_multitexture) return;
   glActiveTextureARB(GL_TEXTURE0_ARB + iUnit);

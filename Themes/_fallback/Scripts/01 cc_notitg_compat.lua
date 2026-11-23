@@ -207,6 +207,9 @@ local function CCDropHooksAfterGameplay()
 		CCFrameHooks = {}
 	end
 end
+function CCWatchdogTrip()
+	error("CC watchdog: modfile hook exceeded its instruction budget (infinite loop?)", 2)
+end
 function CCRunFrameHooks(dt)
 	CCDropHooksAfterGameplay()
 	for i = #CCFrameHooks, 1, -1 do
@@ -214,8 +217,17 @@ function CCRunFrameHooks(dt)
 		if h.dead then
 			table.remove(CCFrameHooks, i)
 		else
+			-- watchdog: a modfile hook that runs ~50M Lua instructions in one call (an
+			-- infinite loop) is cut off and dropped instead of freezing the game.
+			local have_hook = debug and debug.sethook
+			if have_hook then debug.sethook(CCWatchdogTrip, "", 50000000) end
 			local ok, err = xpcall(function() return h.fn(dt) end,
 				function(e) return tostring(e) .. "\n" .. (debug and debug.traceback and debug.traceback("", 2) or "") end)
+			if have_hook then debug.sethook() end
+			if not ok and tostring(err):find("CC watchdog", 1, true) then
+				h.dead = true
+				Trace("CC-WATCHDOG: dropped a runaway modfile hook (" .. (tostring(err):match("^[^\n]*") or "?") .. ")")
+			end
 			h.left = h.left - dt
 			if ok then h.fails = 0
 			else
@@ -445,7 +457,7 @@ do
 	local function song_caller()
 		if not (CCIsNotITGSong and CCIsNotITGSong() and getinfo) then return false end
 		local info = getinfo(3, "S")
-		return info ~= nil and info.source ~= nil and info.source:find("/Songs/", 1, true) ~= nil
+		return info ~= nil and info.source ~= nil and info.source:lower():find("/songs/", 1, true) ~= nil
 	end
 	if StatsManager and StatsManager.GetCurStageStats then
 		local orig_gcss = StatsManager.GetCurStageStats
@@ -523,7 +535,7 @@ if Steps and Steps.GetDifficulty then
 		local d = cc_getdiff(self)
 		if CCIsNotITGSong and CCIsNotITGSong() and getinfo then
 			local info = getinfo(2, "S")
-			if info and info.source and info.source:find("/Songs/", 1, true) then
+			if info and info.source and info.source:lower():find("/songs/", 1, true) then
 				return cc_diffnum[d] or d
 			end
 		end
@@ -545,7 +557,7 @@ do
 	local function song_caller()
 		if not (CCIsNotITGSong and CCIsNotITGSong() and getinfo) then return false end
 		local info = getinfo(3, "S")
-		return info ~= nil and info.source ~= nil and info.source:find("/Songs/", 1, true) ~= nil
+		return info ~= nil and info.source ~= nil and info.source:lower():find("/songs/", 1, true) ~= nil
 	end
 	if ActorFrame and ActorFrame.GetChildren and ActorFrame.GetChildAt then
 		local cc_getchildren = ActorFrame.GetChildren
@@ -632,7 +644,7 @@ do
 	local function song_caller()
 		if not (CCIsNotITGSong and CCIsNotITGSong() and getinfo) then return false end
 		local info = getinfo(3, "S")
-		return info ~= nil and info.source ~= nil and info.source:find("/Songs/", 1, true) ~= nil
+		return info ~= nil and info.source ~= nil and info.source:lower():find("/songs/", 1, true) ~= nil
 	end
 	type = function(v)
 		local t = cc_type(v)
@@ -659,7 +671,7 @@ if GameState and CCSleepingPlayer then
 	local function from_theme(level)
 		if not getinfo then return true end
 		local info = getinfo(level + 1, "S")
-		return not (info and info.source and info.source:find("/Songs/", 1, true))
+		return not (info and info.source and info.source:lower():find("/songs/", 1, true))
 	end
 	local function sleeper()
 		local n = CCSleepingPlayer()

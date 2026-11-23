@@ -132,6 +132,10 @@ bool ActorUtil::ResolvePath(
   return true;
 }
 
+// CC fork: >0 while a NotITG/OpenITG .xml actor file loads; Actor's constructor
+// reads it to pick that engine's transform order (rotate, then zoom).
+int g_iCCLegacyXmlDepth = 0;
+
 namespace {
 std::string GetLegacyActorClass(XNode* pActor) {
   DEBUG_ASSERT(CC_LEGACY_ACTORS);
@@ -494,7 +498,7 @@ Actor* ActorUtil::MakeActor(const std::string& sPath_, Actor* pParentActor) {
 
       // CC fork: guard against runaway self-including XML (a NotITG
       // template whose Condition never turns false must not crash us).
-      static int s_iCCXmlDepth = 0;
+      int& s_iCCXmlDepth = g_iCCLegacyXmlDepth;
       if (s_iCCXmlDepth >= 48) {
         LuaHelpers::ReportScriptErrorFmt(
             "%s: XML include depth limit reached; skipping.", sPath.c_str());

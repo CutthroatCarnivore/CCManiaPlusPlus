@@ -24,6 +24,7 @@
 #include "Preference.h"
 #include "RageDisplay.h"
 extern bool g_bCCNotITGColumns;  // CC fork (PlayerOptions.cpp): NotITG modfile loaded
+extern int g_iCCLegacyXmlDepth;  // CC fork (ActorUtil.cpp): >0 while a NotITG .xml loads
 #include "RageMath.h"
 #include "RageTimer.h"
 #include "RageTypes.h"
@@ -172,6 +173,7 @@ Actor::Actor() {
   m_bFirstUpdate = true;
   m_tween_uses_effect_delta = false;
   rate_scaling_enabled_ = true;
+  m_bCCNotITGXform = g_iCCLegacyXmlDepth > 0;  // CC fork
 }
 
 Actor::~Actor() {
@@ -195,6 +197,7 @@ Actor::Actor(const Actor& cpy) : MessageSubscriber(cpy) {
   CPY(m_FakeParent);
   CPY(m_pCCShader);  // CC fork
   CPY(m_CC2);
+  CPY(m_bCCNotITGXform);
   CPY(m_pLuaInstance);
 
   m_WrapperStates.resize(cpy.m_WrapperStates.size());
@@ -724,6 +727,24 @@ void Actor::BeginDraw() {
     DISPLAY->PreMultMatrix(m);
   }
 
+  // CC fork: NotITG/OpenITG actors rotate their geometry first and zoom after,
+  // along the parent's axes (zoomto + rotationz gives a rhombus; zoomz
+  // stretches a sprite turned with rotationy). Conformance test 26.
+  const bool cc_rotate_first = m_bCCNotITGXform;
+  auto cc_apply_scale = [&]() {
+    const float scaleX = m_pTempState->scale.x * m_baseScale.x;
+    const float scaleY = m_pTempState->scale.y * m_baseScale.y;
+    const float scaleZ = m_pTempState->scale.z * m_baseScale.z;
+    if (scaleX != 1 || scaleY != 1 || scaleZ != 1) {
+      RageMatrix m;
+      RageMatrixScale(&m, scaleX, scaleY, scaleZ);
+      DISPLAY->PreMultMatrix(m);
+    }
+  };
+  if (cc_rotate_first) {
+    cc_apply_scale();
+  }
+
   // Get the rotation of the actor
   {
     const float rotationX = m_pTempState->rotation.x + m_baseRotation.x;
@@ -742,16 +763,8 @@ void Actor::BeginDraw() {
   }
 
   // Get the scale of the actor
-  {
-    const float scaleX = m_pTempState->scale.x * m_baseScale.x;
-    const float scaleY = m_pTempState->scale.y * m_baseScale.y;
-    const float scaleZ = m_pTempState->scale.z * m_baseScale.z;
-
-    if (scaleX != 1 || scaleY != 1 || scaleZ != 1) {
-      RageMatrix m;
-      RageMatrixScale(&m, scaleX, scaleY, scaleZ);
-      DISPLAY->PreMultMatrix(m);
-    }
+  if (!cc_rotate_first) {
+    cc_apply_scale();
   }
 
   // Adjust the alignment of the actor
@@ -803,12 +816,18 @@ void Actor::BeginDraw() {
       RageMatrixTranslate(&m, t.pos.x, t.pos.y, t.pos.z);
       DISPLAY->PreMultMatrix(m);
     }
+    const bool cc_scale2 = t.scale.x != 1 || t.scale.y != 1 || t.scale.z != 1;
+    if (cc_scale2 && cc_rotate_first) {
+      RageMatrix m;
+      RageMatrixScale(&m, t.scale.x, t.scale.y, t.scale.z);
+      DISPLAY->PreMultMatrix(m);
+    }
     if (t.rot.x != 0 || t.rot.y != 0 || t.rot.z != 0) {
       RageMatrix m;
       RageMatrixRotationXYZ(&m, t.rot.x, t.rot.y, t.rot.z);
       DISPLAY->PreMultMatrix(m);
     }
-    if (t.scale.x != 1 || t.scale.y != 1 || t.scale.z != 1) {
+    if (cc_scale2 && !cc_rotate_first) {
       RageMatrix m;
       RageMatrixScale(&m, t.scale.x, t.scale.y, t.scale.z);
       DISPLAY->PreMultMatrix(m);

@@ -759,6 +759,9 @@ class Actor : public MessageSubscriber {
     RageVector3 scale = RageVector3(1, 1, 1);
     float skewx = 0, skewy = 0;
   } m_CC2;
+  // CC fork: actor was built from a NotITG/OpenITG .xml file, so it draws with
+  // that engine's transform order: rotate first, then zoom (conformance test 26).
+  bool m_bCCNotITGXform = false;
  protected:
   // WrapperStates provides a way to wrap the actor inside ActorFrames,
   // applicable to any actor, not just ones the theme creates.

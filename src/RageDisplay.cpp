@@ -495,6 +495,8 @@ void RageDisplay::TextureTranslate(float x, float y) {
   g_TextureStack.TranslateLocal(x, y, 0);
 }
 
+extern bool g_bCCNotITGColumns;  // CC fork (PlayerOptions.cpp)
+
 void RageDisplay::LoadMenuPerspective(
     float fovDegrees, float fWidth, float fHeight, float fVanishPointX,
     float fVanishPointY, float fFarDist) {
@@ -508,7 +510,13 @@ void RageDisplay::LoadMenuPerspective(
     rage_clamp(fovDegrees, 0.1f, 179.9f);
     float fovRadians = fovDegrees / 180.f * PI;
     float theta = fovRadians / 2;
-    float fDistCameraFromImage = fWidth / 2 / std::tan(theta);
+    // CC fork: NotITG defines the fov against a 4:3 screen (height * 4/3),
+    // even on a widescreen -- the camera sits closer, so depth looks
+    // stronger (conformance test 24: z 300 magnifies 1.63x, not 1.41x).
+    // Mod charts' RealFov() helpers rely on this.
+    const float fDistWidth =
+        g_bCCNotITGColumns ? fHeight * 4.0f / 3.0f : fWidth;
+    float fDistCameraFromImage = fDistWidth / 2 / std::tan(theta);
 
     fVanishPointX = SCALE(fVanishPointX, 0, fWidth, fWidth, 0);
     fVanishPointY = SCALE(fVanishPointY, 0, fHeight, fHeight, 0);

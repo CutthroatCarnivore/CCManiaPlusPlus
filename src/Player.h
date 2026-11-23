@@ -129,6 +129,18 @@ class Player : public ActorFrame {
     m_bSendJudgmentAndComboMessages = b;
   }
 
+  // CC fork: NotITG's extra players P3..P8. They play the same chart on
+  // autoplay, send no judgments, never touch the real players' stats, and
+  // sleep (no update, no drawing) until a modfile calls SetAwake(true).
+  void CCMakeExtraPlayer() {
+    m_bCCExtraPlayer = true;
+    m_bCCAwake = false;
+    m_bSendJudgmentAndComboMessages = false;
+  }
+  bool m_bCCExtraPlayer = false;
+  bool m_bCCAwake = true;
+  int m_iCCInputPlayer = 0;
+
   // OITG bug:  Actor::SetZoom only sets X and Y.  When mini is applied to
   // the notefield with SetZoom, it does not affect the range of bumpy.
   // m_oitg_zoom_mode provides compatibility with that bug.  Only used in

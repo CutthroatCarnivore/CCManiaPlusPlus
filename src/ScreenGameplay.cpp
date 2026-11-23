@@ -269,6 +269,8 @@ void PlayerInfo::LoadDummyP1(int iDummyIndex, int iAddToDifficulty) {
   // CC fork: PlayerOptions::operator= doesn't copy m_pn, so a dummy's options
   // had no player number and asserted once its notefield actually drew.
   m_PlayerStateDummy.SetPlayerNumber(PLAYER_1);
+  // CC fork: extra NotITG players play the chart on autoplay.
+  m_PlayerStateDummy.m_PlayerController = PC_AUTOPLAY;
 }
 
 PlayerInfo::~PlayerInfo() {
@@ -421,6 +423,20 @@ bool CCSongIsNotITG(const Song* pSong) {
 }
 
 static PlayerNumber g_CCSleepingPN = PLAYER_INVALID;
+
+// CC fork: player states of NotITG's extra players P3..P8 (index 0 = P3),
+// so GAMESTATE:ApplyModifiers(str, 3..8) can reach them.
+static PlayerState* g_CCExtraPlayerStates[CC_NOTITG_EXTRA_PLAYERS] = {};
+void CCRegisterExtraPlayerState(int idx, PlayerState* ps) {
+  if (idx >= 0 && idx < CC_NOTITG_EXTRA_PLAYERS) g_CCExtraPlayerStates[idx] = ps;
+}
+void CCClearExtraPlayerStates() {
+  for (PlayerState*& ps : g_CCExtraPlayerStates) ps = nullptr;
+}
+PlayerState* CCGetExtraPlayerState(int idx) {
+  if (idx < 0 || idx >= CC_NOTITG_EXTRA_PLAYERS) return nullptr;
+  return g_CCExtraPlayerStates[idx];
+}
 // CC fork: true for the hidden autoplay player that only exists for NotITG
 // modfiles. Its autoplay must not mark the real player's score as autoplay.
 bool CCIsSleepingPlayer(PlayerNumber pn) {
@@ -709,7 +725,8 @@ void ScreenGameplay::Init() {
     // CC fork: NotITG's extra players P3..P8 are dummies here.
     if (pi->m_bIsDummy && CCSongIsNotITG(GAMESTATE->m_pCurSong)) {
       sName = ssprintf("PlayerP%d", 3 + pi->m_iDummyIndex);
-      pi->m_pPlayer->SetVisible(false);  // asleep until a modfile uses it
+      pi->m_pPlayer->CCMakeExtraPlayer();  // asleep until SetAwake(true)
+      CCRegisterExtraPlayerState(pi->m_iDummyIndex, pi->GetPlayerState());
     }
     pi->m_pPlayer->SetName(sName);
     if (pi->m_pn == m_CCSleepingPN && !pi->m_bIsDummy) {
@@ -1195,6 +1212,7 @@ void ScreenGameplay::InitSongQueues() {
 
 ScreenGameplay::~ScreenGameplay() {
   CCRemoveSleepingPlayer();  // CC fork
+  CCClearExtraPlayerStates();  // CC fork
   GAMESTATE->m_AdjustTokensBySongCostForFinalStageCheck = true;
   if (this->IsFirstUpdate()) {
     /* We never received any updates. That means we were deleted without being
@@ -1954,6 +1972,15 @@ void ScreenGameplay::Update(float fDeltaTime) {
   }
 
   UpdateSongPosition(fDeltaTime);
+  // CC fork: NotITG extra players follow P1's song position, and their mods
+  // ease toward their targets like a real player's.
+  for (PlayerInfo& pi : m_vPlayerInfo) {
+    if (pi.m_bIsDummy && pi.m_pPlayer != nullptr && pi.m_pPlayer->m_bCCExtraPlayer) {
+      PlayerState* ps = pi.GetPlayerState();
+      ps->m_Position = GAMESTATE->m_pPlayerState[PLAYER_1]->m_Position;
+      ps->Update(fDeltaTime);
+    }
+  }
 
   if (m_bZeroDeltaOnNextUpdate) {
     Screen::Update(0);
@@ -3028,6 +3055,20 @@ void ScreenGameplay::HandleScreenMessage(const ScreenMessage SM) {
   // CC fork: drop the sleeping player before results/back-out screens load.
   if (SM == SM_GoToNextScreen || SM == SM_GoToPrevScreen) {
     CCRemoveSleepingPlayer();
+    // CC fork: modfiles share the theme's Lua state; put back any engine or
+    // theme globals a modfile replaced (e.g. "Def = {}") before the results
+    // screen's Lua runs, or the evaluation screen / CC Scorecard breaks.
+    Lua* L = LUA->Get();
+    lua_getglobal(L, "CCRestoreGlobals");
+    if (lua_isfunction(L, -1)) {
+      if (lua_pcall(L, 0, 0, 0) != 0) {
+        LOG->Warn("CC fork: CCRestoreGlobals failed: %s", lua_tostring(L, -1));
+        lua_pop(L, 1);
+      }
+    } else {
+      lua_pop(L, 1);
+    }
+    LUA->Release(L);
   }
   if (SM == SM_DoneFadingIn) {
     // If the ready animation is zero length, then playing the sound will

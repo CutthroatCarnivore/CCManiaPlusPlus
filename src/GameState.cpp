@@ -2667,6 +2667,7 @@ MultiPlayer GetNextEnabledMultiPlayer(MultiPlayer mp) {
 }
 
 // lua start
+PlayerState* CCGetExtraPlayerState(int idx);  // CC fork, ScreenGameplay.cpp
 #include "Game.h"
 #include "LuaBinding.h"
 
@@ -2926,6 +2927,7 @@ class LunaGameState : public Luna<GameState> {
     return 0;
   }
   // CC fork: NotITG GAMESTATE:ApplyModifiers(str[, pn]). Writes the Song
+  // (P3..P8 are ScreenGameplay's extra players, see CCGetExtraPlayerState.)
   // level only, so Current eases toward it at each mod's "*speed" (NotITG
   // semantics) and nothing leaks into the player's preferred mods.
   // pn may be NotITG's 1-based number, a PlayerNumber enum, or omitted (all).
@@ -2935,10 +2937,22 @@ class LunaGameState : public Luna<GameState> {
       FOREACH_EnabledPlayer(pn) {
         p->m_pPlayerState[pn]->m_PlayerOptions.FromString(ModsLevel_Song, s);
       }
+      for (int i = 0; i < 6; ++i) {  // CC fork: NotITG P3..P8
+        if (PlayerState* ps = CCGetExtraPlayerState(i)) {
+          ps->m_PlayerOptions.FromString(ModsLevel_Song, s);
+        }
+      }
     } else {
       PlayerNumber pn = PLAYER_INVALID;
       if (lua_type(L, 2) == LUA_TNUMBER) {
-        pn = static_cast<PlayerNumber>(IArg(2) - 1);
+        const int n = IArg(2);
+        if (n >= 3 && n <= 8) {  // CC fork: NotITG P3..P8
+          if (PlayerState* ps = CCGetExtraPlayerState(n - 3)) {
+            ps->m_PlayerOptions.FromString(ModsLevel_Song, s);
+          }
+          COMMON_RETURN_SELF;
+        }
+        pn = static_cast<PlayerNumber>(n - 1);
       } else {
         pn = Enum::Check<PlayerNumber>(L, 2);
       }

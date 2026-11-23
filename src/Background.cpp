@@ -62,6 +62,37 @@ static ThemeMetric<bool> RAND_BG_ENDS_AT_LAST_BEAT(
 
 static Preference<bool> g_bShowDanger("ShowDanger", true);
 bool CCSongIsNotITG(const Song* pSong);  // CC fork (ScreenGameplay.cpp)
+
+// CC fork: does this song's background use a scripted animation (an XML or
+// Lua file, or a folder) rather than a plain image or movie? Cached per song.
+static bool CCSongHasAnimatedBG(const Song* pSong) {
+  static const Song* s_song = nullptr;
+  static bool s_value = false;
+  if (pSong == s_song) return s_value;
+  s_song = pSong;
+  s_value = false;
+  auto is_anim = [&](std::string f) {
+    if (f.empty()) return false;
+    if (f[0] != '/') f = pSong->GetSongDir() + f;
+    std::string ext = GetExtension(f);
+    MakeLower(ext);
+    if (ext == "xml" || ext == "lua") return true;
+    return ext.empty() && IsADirectory(f);
+  };
+  if (pSong->HasBackground() && is_anim(pSong->GetBackgroundPath())) {
+    s_value = true;
+  }
+  for (int bl = 0; bl < NUM_BackgroundLayer && !s_value; ++bl) {
+    for (const BackgroundChange& c :
+         pSong->GetBackgroundChanges(static_cast<BackgroundLayer>(bl))) {
+      if (is_anim(c.m_def.m_sFile1)) {
+        s_value = true;
+        break;
+      }
+    }
+  }
+  return s_value;
+}
 static Preference<float> g_fBGBrightness("BGBrightness", 0.7f);
 static Preference<RandomBackgroundMode> g_RandomBackgroundMode(
     "RandomBackgroundMode", BGMODE_RANDOMMOVIES);
@@ -1027,10 +1058,13 @@ void BrightnessOverlay::SetActualBrightness() {
                                    ->m_PlayerOptions.GetCurrent()
                                    .m_fCover;
 
+  // CC fork: side by side, NotITG dims a mod chart's plain background image
+  // by BGBrightness (Indignant Divinity, Selfish Sweet) but draws its
+  // scripted background animations (an XML/Lua file or folder, e.g. Seize the
+  // day's bg/default.xml) at full brightness.
   float fBaseBGBrightness = g_fBGBrightness;
-  // CC fork: NotITG modfiles are authored against a full-brightness
-  // background (NotITG doesn't dim them), so don't darken their visuals.
-  if (GAMESTATE->m_pCurSong && CCSongIsNotITG(GAMESTATE->m_pCurSong)) {
+  if (GAMESTATE->m_pCurSong && CCSongIsNotITG(GAMESTATE->m_pCurSong) &&
+      CCSongHasAnimatedBG(GAMESTATE->m_pCurSong)) {
     fBaseBGBrightness = 1.0f;
   }
 

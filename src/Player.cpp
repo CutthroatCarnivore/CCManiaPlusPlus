@@ -913,6 +913,11 @@ void Player::Update(float fDeltaTime) {
   if (!m_bLoaded) {
     return;
   }
+  // CC fork: a sleeping NotITG extra player only runs its own tweens.
+  if (m_bCCExtraPlayer && !m_bCCAwake) {
+    Actor::Update(fDeltaTime);
+    return;
+  }
 
   // LOG->Trace( "Player::Update(%f)", fDeltaTime );
 
@@ -1112,7 +1117,8 @@ void Player::Update(float fDeltaTime) {
       Step(iTrack, iHeadRow, now, false, false);
       if (m_pPlayerState->m_PlayerController == PC_AUTOPLAY) {
         // CC fork: the hidden NotITG player doesn't flag the real player.
-        if (!CCIsSleepingPlayer(m_pPlayerState->m_PlayerNumber)) {
+        if (!m_bCCExtraPlayer &&
+            !CCIsSleepingPlayer(m_pPlayerState->m_PlayerNumber)) {
           STATSMAN->m_CurStageStats.m_bUsedAutoplay = true;
         }
         if (m_pPlayerStageStats) {
@@ -1451,7 +1457,8 @@ void Player::UpdateHoldNotes(
         // TODO: Make the CPU miss sometimes.
         if (m_pPlayerState->m_PlayerController == PC_AUTOPLAY) {
           // CC fork: the hidden NotITG player doesn't flag the real player.
-          if (!CCIsSleepingPlayer(m_pPlayerState->m_PlayerNumber)) {
+          if (!m_bCCExtraPlayer &&
+              !CCIsSleepingPlayer(m_pPlayerState->m_PlayerNumber)) {
             STATSMAN->m_CurStageStats.m_bUsedAutoplay = true;
           }
           if (m_pPlayerStageStats != nullptr) {
@@ -1757,6 +1764,10 @@ void Player::ApplyWaitingTransforms() {
 }
 
 void Player::DrawPrimitives() {
+  // CC fork: sleeping NotITG extra players draw nothing, even via proxies.
+  if (m_bCCExtraPlayer && !m_bCCAwake) {
+    return;
+  }
   // TODO: Remove use of PlayerNumber.
   PlayerNumber pn = m_pPlayerState->m_PlayerNumber;
 
@@ -3882,6 +3893,26 @@ class LunaPlayer : public Luna<Player> {
     }
     COMMON_RETURN_SELF;
   }
+  // CC fork: NotITG extra players sleep until SetAwake(true). P1/P2 are
+  // always awake.
+  static int SetAwake(T* p, lua_State* L) {
+    if (p->m_bCCExtraPlayer) {
+      p->m_bCCAwake = lua_isnoneornil(L, 1) ? true : BArg(1);
+    }
+    COMMON_RETURN_SELF;
+  }
+  static int IsAwake(T* p, lua_State* L) {
+    lua_pushboolean(L, p->m_bCCAwake);
+    return 1;
+  }
+  static int SetInputPlayer(T* p, lua_State* L) {
+    p->m_iCCInputPlayer = static_cast<int>(luaL_optnumber(L, 1, 0));
+    COMMON_RETURN_SELF;
+  }
+  static int GetInputPlayer(T* p, lua_State* L) {
+    lua_pushnumber(L, p->m_iCCInputPlayer);
+    return 1;
+  }
   // CC fork: NotITG Player:SetFarDist(px): how far ahead notes are drawn.
   static int SetFarDist(T* p, lua_State* L) {
     if (p->CCGetNoteField()) {
@@ -3932,6 +3963,10 @@ class LunaPlayer : public Luna<Player> {
     ADD_METHOD(SetHiddenRegions);
     ADD_METHOD(ClearHiddenRegions);
     ADD_METHOD(SetFarDist);
+    ADD_METHOD(SetAwake);
+    ADD_METHOD(IsAwake);
+    ADD_METHOD(SetInputPlayer);
+    ADD_METHOD(GetInputPlayer);
     ADD_GET_SET_METHODS(oitg_zoom_mode);
   }
 };

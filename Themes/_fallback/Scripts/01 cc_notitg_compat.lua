@@ -198,9 +198,10 @@ if Song then
 	Song.GetBeatFromElapsedTime = function(self, t) return self:GetTimingData():GetBeatFromElapsedTime(t) end
 end
 
+-- IsAwake/SetAwake/SetInputPlayer are real now (C++, CC fork: NotITG P3..P8).
 if Player then
-	Player.IsAwake = function() return true end
-	Player.SetAwake = function(self) return self end
+	if not Player.IsAwake then Player.IsAwake = function() return true end end
+	if not Player.SetAwake then Player.SetAwake = function(self) return self end end
 end
 
 -- Per-frame hooks (driven from ScreenSystemLayer aux.lua) ------------------
@@ -215,6 +216,59 @@ end
 -- Modfile hooks belong to the song: drop them all once gameplay hands off
 -- to a non-gameplay screen (results, back to song select), so they don't
 -- keep running modfile code against destroyed actors.
+-- Modfiles share the theme's Lua state. Some replace engine globals (My Leather's
+-- actorgen does "Def = {}" because NotITG has no Def), which broke the theme's
+-- evaluation screen and the CC Scorecard after the song. Snapshot the engine and
+-- theme globals while a non-gameplay screen is up; ScreenGameplay calls
+-- CCRestoreGlobals() as it hands off, before the next screen's Lua runs.
+local cc_stdlib = { string = true, table = true, math = true, os = true, io = true,
+	coroutine = true, debug = true, Def = true }
+local cc_gsnap, cc_fsnap
+local function cc_restorable_table(k, v)
+	return cc_stdlib[k] or getmetatable(v) ~= nil
+end
+function CCSnapshotGlobals()
+	local g, f = {}, {}
+	for k, v in pairs(_G) do
+		local t = type(v)
+		if t == "function" or t == "userdata" then
+			g[k] = v
+		elseif t == "table" and k ~= "_G" and k ~= "package" and k ~= "_LOADED"
+			and cc_restorable_table(k, v) then
+			g[k] = v
+			local fields = {}
+			for fk, fv in pairs(v) do if type(fv) == "function" then fields[fk] = fv end end
+			f[k] = fields
+		end
+	end
+	cc_gsnap, cc_fsnap = g, f
+end
+function CCRestoreGlobals()
+	if not cc_gsnap then return 0 end
+	local n, names = 0, {}
+	for k, v in pairs(cc_gsnap) do
+		if rawget(_G, k) ~= v then
+			rawset(_G, k, v); n = n + 1
+			if #names < 8 then names[#names + 1] = tostring(k) end
+		end
+	end
+	for k, fields in pairs(cc_fsnap) do
+		local t = rawget(_G, k)
+		if type(t) == "table" then
+			for fk, fv in pairs(fields) do
+				if rawget(t, fk) ~= fv then
+					rawset(t, fk, fv); n = n + 1
+					if #names < 8 then names[#names + 1] = tostring(k) .. "." .. tostring(fk) end
+				end
+			end
+		end
+	end
+	if n > 0 then
+		Trace("CC-NOTITG restored " .. n .. " globals a modfile replaced: " .. table.concat(names, ", "))
+	end
+	return n
+end
+
 local cc_top_screen, cc_top_was_gameplay = nil, false
 local function CCDropHooksAfterGameplay()
 	local top = SCREENMAN and SCREENMAN:GetTopScreen()
@@ -223,6 +277,11 @@ local function CCDropHooksAfterGameplay()
 	cc_top_screen = top
 	cc_top_was_gameplay = top ~= nil and top.GetScreenType ~= nil
 		and top:GetScreenType() == "ScreenType_Gameplay"
+	if top ~= nil and not cc_top_was_gameplay then
+		-- back on a theme screen: modfile code is gone, refresh the clean snapshot
+		if leaving_gameplay then CCRestoreGlobals() end
+		CCSnapshotGlobals()
+	end
 	if leaving_gameplay and not cc_top_was_gameplay and #CCFrameHooks > 0 then
 		Trace("CC-NOTITG dropped " .. #CCFrameHooks .. " frame hooks after gameplay")
 		CCFrameHooks = {}

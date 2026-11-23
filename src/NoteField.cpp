@@ -845,6 +845,17 @@ void NoteField::CalcPixelsBeforeAndAfterTargets() {
   if (m_iCCFarDist > 0 && m_iCCFarDist > m_FieldRenderArgs.draw_pixels_before_targets) {
     m_FieldRenderArgs.draw_pixels_before_targets = static_cast<float>(m_iCCFarDist);
   }
+  {
+    // CC fork: NotITG centered2 slides the notes along their path (every
+    // y offset grows by it) without changing which notes get drawn, so the
+    // draw window moves with it. Without this a big centered2 (Altale's
+    // corkscrew ending) culls every note.
+    const float c2 = curr_options.m_fCC[CCMOD_CENTERED2] * ARROW_SIZE;
+    if (c2 != 0.0f) {
+      m_FieldRenderArgs.draw_pixels_after_targets += c2;
+      m_FieldRenderArgs.draw_pixels_before_targets += c2;
+    }
+  }
   m_FieldRenderArgs.cc_hidden_regions = &m_CCHiddenRegions;
   m_FieldRenderArgs.cc_hidden_cols = &m_CCHiddenRegionCols;
 }

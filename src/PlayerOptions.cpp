@@ -34,6 +34,7 @@ int CCModFromName(const std::string& sName) {
 #include <cfloat>
 #include <cmath>
 #include <cstdio>
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -989,7 +990,21 @@ bool PlayerOptions::FromOneModString(
     // level is a percentage for every other option, so multiply by 100. -Kyz
     m_BatteryLives = level * 100.0f;
   } else if (sBit.find("modtimer") != sBit.npos) {
-    if (sBit == "modtimerdefault") {
+    if (sBit == "modtimer" || sBit == "globalmodtimer") {
+      // CC fork: NotITG's ModTimer mod (100 = song time, which modfiles
+      // set so drunk/tipsy/etc. line up with the music; 200 = beat).
+      if (level <= 0.001f) {
+        m_ModTimerType = ModTimerType_Default;
+      } else if (level >= 1.5f) {
+        m_ModTimerType = ModTimerType_Beat;
+      } else {
+        m_ModTimerType = ModTimerType_Song;
+      }
+    } else if (sBit == "globalmodtimermult") {
+      SET_FLOAT(fModTimerMult)
+    } else if (sBit == "globalmodtimeroffset") {
+      SET_FLOAT(fModTimerOffset)
+    } else if (sBit == "modtimerdefault") {
       m_ModTimerType = ModTimerType_Default;
     } else if (sBit == "modtimersong") {
       m_ModTimerType = ModTimerType_Song;
@@ -1631,6 +1646,13 @@ bool PlayerOptions::FromOneModString(
     MakeLower(name);
     if (NOTESKIN && NOTESKIN->DoesNoteSkinExist(name)) {
       m_sNoteSkin = name;
+    } else {
+      // CC fork: log each unknown mod name once, so unsupported NotITG mods
+      // show up in the log during side-by-side testing.
+      static std::set<std::string> s_cc_unknown;
+      if (s_cc_unknown.size() < 512 && s_cc_unknown.insert(sBit).second) {
+        LOG->Trace("CC-UNKNOWN-MOD: %s", sBit.c_str());
+      }
     }
     return false;
   }

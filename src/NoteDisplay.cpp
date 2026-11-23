@@ -30,6 +30,7 @@
 #include "PrefsManager.h"
 #include "RageDisplay.h"
 #include "RageMath.h"
+#include "ScreenDimensions.h"  // CC fork: ARROW_SIZE
 #include "RageTexture.h"
 #include "RageTypes.h"
 #include "RageUtil.h"
@@ -1730,16 +1731,25 @@ void NoteColumnRenderer::UpdateReceptorGhostStuff(Actor* receptor) const {
   RageVector3 ae_pos;
   RageVector3 ae_rot;
   RageVector3 ae_zoom;
+  // CC fork: NotITG centered2 slides the receptors along the arrow path with
+  // the arrows (modfiles pair a big centered2 with an opposite movey).
+  float cc_receptor_y = 0;
+  {
+    const PlayerOptions& cc_po = player_state->m_PlayerOptions.GetCurrent();
+    const int cc_c = (m_column >= 0 && m_column < CC_MAX_COLS) ? m_column : 0;
+    cc_receptor_y = (cc_po.m_fCC[CCMOD_CENTERED2] +
+                     cc_po.m_fCCCol[CCMOD_CENTERED2][cc_c]) * ARROW_SIZE;
+  }
   switch (NCR_current.m_pos_handler.m_spline_mode) {
     case NCSM_Disabled:
       ArrowEffects::GetXYZPos(
-          player_state, m_column, 0, m_field_render_args->reverse_offset_pixels,
-          ae_pos);
+          player_state, m_column, cc_receptor_y,
+          m_field_render_args->reverse_offset_pixels, ae_pos);
       break;
     case NCSM_Offset:
       ArrowEffects::GetXYZPos(
-          player_state, m_column, 0, m_field_render_args->reverse_offset_pixels,
-          ae_pos);
+          player_state, m_column, cc_receptor_y,
+          m_field_render_args->reverse_offset_pixels, ae_pos);
       NCR_current.m_pos_handler.EvalForReceptor(song_beat, sp_pos);
       break;
     case NCSM_Position:

@@ -3851,7 +3851,7 @@ class LunaPlayer : public Luna<Player> {
   // CC fork: NotITG Player:SetHiddenRegions({{beat1, beat2}, ...}): notes in
   // those beat ranges aren't drawn by this player's field. ClearHiddenRegions().
   static int SetHiddenRegions(T* p, lua_State* L) {
-    if (p->CCGetNoteField() == nullptr) COMMON_RETURN_SELF;
+    if (p->CCGetNoteField() == nullptr) { COMMON_RETURN_SELF; }
     std::vector<std::pair<float, float>>& v = p->CCGetNoteField()->m_CCHiddenRegions;
     std::vector<int>& vc = p->CCGetNoteField()->m_CCHiddenRegionCols;
     v.clear();
@@ -3881,14 +3881,14 @@ class LunaPlayer : public Luna<Player> {
   // CC fork: NotITG splines -- SetXSpline(index, column, value, offset, speed)
   static int CCSetSpline(T* p, lua_State* L, int type) {
     const PlayerState* ps = p->GetPlayerState();
-    if (ps == nullptr) COMMON_RETURN_SELF;
+    if (ps == nullptr) { COMMON_RETURN_SELF; }
     CCSplineSetPoint(CCSplineSlot(ps), type, IArg(1),
                      IArg(2), FArg(3), FArg(4));
     COMMON_RETURN_SELF;
   }
   static int CCResetSpline(T* p, lua_State* L, int type) {
     const PlayerState* ps = p->GetPlayerState();
-    if (ps == nullptr) COMMON_RETURN_SELF;
+    if (ps == nullptr) { COMMON_RETURN_SELF; }
     CCSplineReset(CCSplineSlot(ps), type,
                   lua_isnumber(L, 1) ? IArg(1) : -1);
     COMMON_RETURN_SELF;

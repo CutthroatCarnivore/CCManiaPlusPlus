@@ -109,15 +109,9 @@ float CCSplineEval(int pn, int type, int column, float y_offset_px) {
   const float x0 = p[i].first, x1 = p[i + 1].first;
   if (x1 - x0 < 1e-6f) return p[i + 1].second;
   const float t = (x - x0) / (x1 - x0);
-  // Catmull-Rom through the neighbouring points (ends clamped).
-  const float v0 = p[i > 0 ? i - 1 : i].second;
-  const float v1 = p[i].second;
-  const float v2 = p[i + 1].second;
-  const float v3 = p[i + 2 < p.size() ? i + 2 : i + 1].second;
-  const float t2 = t * t, t3 = t2 * t;
-  return 0.5f * ((2.0f * v1) + (-v0 + v2) * t +
-                 (2.0f * v0 - 5.0f * v1 + 4.0f * v2 - v3) * t2 +
-                 (-v0 + 3.0f * v1 - 3.0f * v2 + v3) * t3);
+  // NotITG interpolates splines linearly between points (side by side:
+  // 0 @ 0, 200 @ 200, 0 @ 400 puts an arrow 108 px out at +1.69 arrows).
+  return p[i].second + (p[i + 1].second - p[i].second) * t;
 }
 
 // Gradients -----------------------------------------------------------------

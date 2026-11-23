@@ -1568,9 +1568,11 @@ void NoteDisplay::DrawActor(
     const int pn = CCSplineSlot(m_pPlayerState);
     if (CCSplineAny(pn)) {
       const int col = column_args.column;
-      ae_rot.x += CCSplineEval(pn, CCSP_ROTX, col, fYOffset);
-      ae_rot.y += CCSplineEval(pn, CCSP_ROTY, col, fYOffset);
-      ae_rot.z += CCSplineEval(pn, CCSP_ROTZ, col, fYOffset);
+      // NotITG rotation splines are in percent of a radian (100 = 57.3 deg).
+      const float cc_rad = 180.0f / PI / 100.0f;
+      ae_rot.x += CCSplineEval(pn, CCSP_ROTX, col, fYOffset) * cc_rad;
+      ae_rot.y += CCSplineEval(pn, CCSP_ROTY, col, fYOffset) * cc_rad;
+      ae_rot.z += CCSplineEval(pn, CCSP_ROTZ, col, fYOffset) * cc_rad;
       float zf = 1.0f - CCSplineEval(pn, CCSP_SIZE, col, fYOffset) / 200.0f;
       const float tiny = CCSplineEval(pn, CCSP_TINY, col, fYOffset);
       if (tiny != 0) zf *= std::pow(0.5f, tiny / 100.0f);

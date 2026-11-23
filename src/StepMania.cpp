@@ -768,6 +768,60 @@ static void ApplyLogPreferences() {
 static LocalizedString COULDNT_OPEN_LOADING_WINDOW(
     "LoadingWindow", "Couldn't open any loading windows.");
 
+// CC fork: the portable CC Edition mirrors the user's everyday ITGmania setup.
+// On every launch, before anything is read, copy settings, button mappings and
+// profile settings from ~/Library/Application Support/ITGmania/Save (read only;
+// the daily driver's files are never changed). Profile scores (Stats.xml)
+// and score history (SL-Scores, GhostData) already in the CC copy are kept;
+// other files are copied when the daily driver's copy is newer. Opt out: put cc_no_import.txt in Save/.
+#include <filesystem>
+#include <cstdlib>
+#include <fstream>
+static void CCImportDailyDriverSave(const std::string& sDestSave) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const char* home = std::getenv("HOME");
+  if (!home) return;
+  fs::path src = fs::path(home) / "Library/Application Support/ITGmania/Save";
+  fs::path dst(sDestSave);
+  if (!fs::is_directory(src, ec) || fs::exists(dst / "cc_no_import.txt", ec)) return;
+  fs::create_directories(dst, ec);
+  std::ofstream log((dst / "cc_import.log").string(), std::ios::trunc);
+  log << "CC import from " << src.string() << "\n";
+  const char* files[] = {"Preferences.ini", "Keymaps.ini", "ThemePrefs.ini",
+                         "favorites.txt", "CutthroatFreestyle.ini"};
+  for (const char* f : files) {
+    if (!fs::is_regular_file(src / f, ec)) continue;
+    fs::copy_file(src / f, dst / f, fs::copy_options::overwrite_existing, ec);
+    log << (ec ? "FAIL " : "ok   ") << f << (ec ? " " + ec.message() : "") << "\n";
+    ec.clear();
+  }
+  const char* dirs[] = {"UserPrefs", "LocalProfiles"};
+  for (const char* d : dirs) {
+    if (!fs::is_directory(src / d, ec)) continue;
+    int n = 0;
+    for (auto it = fs::recursive_directory_iterator(src / d, ec);
+         !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
+      fs::path rel = fs::relative(it->path(), src, ec);
+      fs::path out = dst / rel;
+      if (it->is_directory(ec)) { fs::create_directories(out, ec); continue; }
+      std::string name = it->path().filename().string();
+      if (name == ".DS_Store") continue;
+      std::string relStr = rel.generic_string();
+      bool bScoreData = name == "Stats.xml" || name == "Stats.xml.sign" ||
+                        relStr.find("/SL-Scores/") != std::string::npos ||
+                        relStr.find("/GhostData/") != std::string::npos;
+      if (bScoreData && fs::exists(out, ec)) continue;  // keep CC scores
+      fs::create_directories(out.parent_path(), ec);
+      fs::copy_file(it->path(), out, fs::copy_options::update_existing, ec);
+      if (!ec) ++n;
+      ec.clear();
+    }
+    log << "ok   " << d << "/ (" << n << " files)\n";
+    ec.clear();
+  }
+}
+
 int sm_main(int argc, char* argv[]) {
   RageThreadRegister thread("Main thread");
   RageException::SetCleanupHandler(HandleException);
@@ -795,6 +849,9 @@ int sm_main(int argc, char* argv[]) {
   bool bPortable = DoesFileExist("/Portable.ini");
   if (!bPortable) {
     FILEMAN->MountUserFilesystems();
+  }
+  if (bPortable) {
+    CCImportDailyDriverSave(RageFileManagerUtil::sDirOfExecutable + "/Save");
   }
 
   // Set this up next. Do this early, since it's needed for

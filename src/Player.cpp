@@ -1876,6 +1876,12 @@ Player::PlayerNoteFieldPositioner::PlayerNoteFieldPositioner(
   player->PushPlayerMatrix(
       x + 100.f * cco.m_fCC[CCMOD_PLAYERX], skew,
       center_y + 100.f * cco.m_fCC[CCMOD_PLAYERY]);  // mod % = pixels
+  // The x/y mods move the playfield itself too, not only its vanishing
+  // point (conformance test 19: 200 y drops the receptors 200 px).
+  if (cco.m_fCC[CCMOD_PLAYERX] != 0 || cco.m_fCC[CCMOD_PLAYERY] != 0) {
+    DISPLAY->Translate(100.f * cco.m_fCC[CCMOD_PLAYERX],
+                       100.f * cco.m_fCC[CCMOD_PLAYERY], 0);
+  }
   float reverse_mult = (reverse ? -1 : 1);
   original_y = player->m_pNoteField->GetY();
   float tilt_degrees = SCALE(tilt, -1.f, +1.f, +30, -30) * reverse_mult;

@@ -875,6 +875,42 @@ void NoteDisplay::DrawHoldPart(
   static const RageVector3 pos_z_vec(0.0f, 0.0f, 1.0f);
   static const RageVector3 pos_y_vec(0.0f, 1.0f, 0.0f);
   StripBuffer queue;
+
+  // CC fork: NotITG hold renderers.
+  //  straightholds: the body follows the arrow path less (100% = a straight
+  //    line under the head), gayholds is the opposite.
+  //  spiralholds (holdtype): the strip is built across the direction the hold
+  //    travels instead of across the lane, so sideways holds keep their width.
+  float cc_straight = 0;
+  bool cc_spiral = false;
+  RageVector3 cc_head(0, 0, 0);
+  {
+    const PlayerOptions& po = m_pPlayerState->m_PlayerOptions.GetCurrent();
+    const int c = (column_args.column >= 0 && column_args.column < CC_MAX_COLS)
+                      ? column_args.column : 0;
+    cc_straight = (po.m_fCC[CCMOD_STRAIGHTHOLDS] + po.m_fCCCol[CCMOD_STRAIGHTHOLDS][c]) -
+                  (po.m_fCC[CCMOD_GAYHOLDS] + po.m_fCCCol[CCMOD_GAYHOLDS][c]);
+    cc_spiral = (po.m_fCC[CCMOD_SPIRALHOLDS] + po.m_fCCCol[CCMOD_SPIRALHOLDS][c]) > 0.0f &&
+                column_args.pos_handler->m_spline_mode != NCSM_Position;
+    if (cc_straight != 0) {
+      RageVector3 sp, ae;
+      column_args.spae_pos_for_beat(m_pPlayerState, part_args.top_beat,
+                                    m_fCCHoldHeadYOffset, m_fYReverseOffsetPixels, sp, ae);
+      cc_head = RageVector3(sp.x + ae.x, 0, sp.z + ae.z);
+    }
+  }
+  auto cc_path_xz = [&](float y, float beat, float& ox, float& oz) {
+    const float yo = ArrowEffects::GetYOffsetFromYPos(column_args.column, y, m_fYReverseOffsetPixels);
+    RageVector3 sp, ae;
+    column_args.spae_pos_for_beat(m_pPlayerState, beat, yo, m_fYReverseOffsetPixels, sp, ae);
+    ox = sp.x + ae.x;
+    oz = sp.z + ae.z;
+    if (cc_straight != 0) {
+      ox += cc_straight * (cc_head.x - ox);
+      oz += cc_straight * (cc_head.z - oz);
+    }
+  };
+
   for (float fY = y_start_pos; !last_vert_set; fY += part_args.y_step) {
     if (fY >= y_end_pos) {
       fY = y_end_pos;
@@ -1020,6 +1056,20 @@ void NoteDisplay::DrawHoldPart(
 
     RageVector3 center_vert(
         sp_pos.x + ae_pos.x, sp_pos.y + ae_pos.y, sp_pos.z + ae_pos.z);
+
+    if (cc_straight != 0) {  // CC fork: straightholds / gayholds
+      center_vert.x += cc_straight * (cc_head.x - center_vert.x);
+      center_vert.z += cc_straight * (cc_head.z - center_vert.z);
+    }
+    if (cc_spiral) {  // CC fork: spiralholds builds the strip across the path
+      float nx, nz;
+      cc_path_xz(fY + 1.0f, cur_beat, nx, nz);
+      RageVector3 f(nx - center_vert.x, 1.0f, nz - center_vert.z);
+      RageVec3Normalize(&f, &f);
+      render_forward = RageVector3(f.x + sp_pos_forward.x, f.y + sp_pos_forward.y,
+                                   f.z + sp_pos_forward.z);
+      RageVec3Normalize(&render_forward, &render_forward);
+    }
 
     // Special case for hold caps, which have the same top and bottom beat.
     if (part_args.top_beat == part_args.bottom_beat && !first_vert_set) {
@@ -1297,6 +1347,8 @@ void NoteDisplay::DrawHold(
     fEndYOffset = fEndPeakYOffset;  // use the calculated PeakYOffset so that
                                     // long holds don't appear to grow
   }
+
+  m_fCCHoldHeadYOffset = fStartYOffset;  // CC fork: straightholds reference
 
   // Swap in reverse, so fStartYOffset is always the offset higher on the
   // screen.
@@ -1699,13 +1751,17 @@ static void CCDrawArrowPath(
   }
   const float width =
       std::max(1.0f, 2.0f + 2.0f * (CCV(ARROWPATHGIRTH) + CCV(ARROWPATHWIDTH)));
-  const float after = field.draw_pixels_after_targets * (1.0f + CCV(ARROWPATHDRAWSIZE));
-  const float before = field.draw_pixels_before_targets * (1.0f + CCV(ARROWPATHDRAWSIZEBACK));
+  // draw_pixels_after_targets is the (negative) stretch past the receptors,
+  // draw_pixels_before_targets the (positive) stretch the arrows come from.
+  const float y_far = field.draw_pixels_before_targets * (1.0f + CCV(ARROWPATHDRAWSIZE));
+  const float y_near = field.draw_pixels_after_targets * (1.0f + CCV(ARROWPATHDRAWSIZEBACK));
 #undef CCV
+  const float lo = std::min(y_near, y_far);
+  const float hi = std::min(std::max(y_near, y_far), lo + 24000.0f);  // cap huge draw distances
   const float step = 8.0f;
   std::vector<RageSpriteVertex> v;
-  v.reserve(static_cast<size_t>((after - before) / step) + 2);
-  for (float y = before; y <= after; y += step) {
+  v.reserve(static_cast<size_t>((hi - lo) / step) + 2);
+  for (float y = lo; y <= hi; y += step) {
     RageVector3 pos;
     ArrowEffects::GetXYZPos(ps, col, y, field.reverse_offset_pixels, pos);
     RageSpriteVertex sv;
@@ -1756,10 +1812,20 @@ void NoteColumnRenderer::DrawPrimitives() {
       cc_po.m_fCC[CCMOD_HIDEMINES] + cc_po.m_fCCCol[CCMOD_HIDEMINES][cc_c] +
       cc_po.m_fCC[CCMOD_DISABLEMINES] + cc_po.m_fCCCol[CCMOD_DISABLEMINES][cc_c] +
       cc_po.m_fCC[CCMOD_MINESTEALTH] + cc_po.m_fCCCol[CCMOD_MINESTEALTH][cc_c] >= 0.5f;
+  const std::vector<std::pair<float, float>>* cc_hidden =
+      m_field_render_args->cc_hidden_regions;
   for (; begin != end; ++begin) {
     const TapNote& tn = begin->second;
     if (cc_hide_mines && tn.type == TapNoteType_Mine) {
       continue;
+    }
+    if (cc_hidden && !cc_hidden->empty()) {  // CC fork: NotITG hidden regions
+      const float b = NoteRowToBeat(begin->first);
+      bool hide = false;
+      for (const auto& r : *cc_hidden) {
+        if (b >= r.first && b <= r.second) { hide = true; break; }
+      }
+      if (hide) continue;
     }
     switch (tn.type) {
       case TapNoteType_Empty:

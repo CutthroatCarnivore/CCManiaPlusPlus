@@ -13,7 +13,8 @@ static const char* ccAlias(const std::string& n) {
       {"stealthgr", "stealthglowred"}, {"stealthgg", "stealthglowgreen"},
       {"stealthgb", "stealthglowblue"}, {"longboys", "longholds"},
       {"longboy", "longholds"}, {"hidenoteflashes", "hidenoteflash"},
-      {"drunkspacing", "drunkyspacing"}, {"drunksize", "drunkysize"}};
+      {"drunkspacing", "drunkyspacing"}, {"drunksize", "drunkysize"},
+      {"holdtype", "spiralholds"}};
   for (auto& a : A) if (n == a[0]) return a[1];
   return nullptr;
 }
@@ -892,6 +893,12 @@ bool PlayerOptions::FromOneModString(
     m_Speed##opt = speed; \
   }
   const bool on = (level > 0.5f);
+
+  // CC fork: NotITG's confusionzoffset[N] is ITGmania's confusionoffset[N]
+  // (the stock mod that actually rotates the arrows).
+  if (sBit.compare(0, 16, "confusionzoffset") == 0) {
+    sBit = "confusionoffset" + sBit.substr(16);
+  }
 
   // CC fork: NotITG mods, global ("tinyx") or per column ("tinyx0")
   {

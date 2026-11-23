@@ -956,6 +956,7 @@ RageSurface* RageDisplay_Legacy::CreateScreenshot() {
         g_pWind->GetActualVideoModeParams().height, GL_RGBA, GL_UNSIGNED_BYTE,
         image->pixels);
     DebugAssertNoGLError();
+    glReadBuffer(GL_BACK);  // CC fork: AFT screen captures read the back buffer
 
     RageSurfaceUtils::FlipVertically(image);
   }
@@ -1921,14 +1922,54 @@ void RageDisplay_Legacy::CCBindTextureUnit(int iUnit, uintptr_t iTexHandle) {
 }
 
 void RageDisplay_Legacy::CCCaptureScreen(uintptr_t iTexHandle, int iWidth, int iHeight) {
-  if (iTexHandle == 0) return;
+  if (iTexHandle == 0 || iWidth < 1 || iHeight < 1) return;
   GLint vp[4];
   glGetIntegerv(GL_VIEWPORT, vp);
+  {
+    // Read what has been drawn so far this frame, never the last shown frame.
+    GLint cur_read_fb = 0;
+    if (GLEW_EXT_framebuffer_object)
+      glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING_EXT, &cur_read_fb);
+    if (cur_read_fb == 0) glReadBuffer(GL_BACK);
+  }
+  if (vp[2] == iWidth && vp[3] == iHeight) {
+    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(iTexHandle));
+    glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, vp[0], vp[1], iWidth, iHeight);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    return;
+  }
+  // Window and texture sizes differ (e.g. a Retina window): scale the whole
+  // screen into the texture, like NotITG's full-screen capture.
+  if (GLEW_EXT_framebuffer_blit && GLEW_EXT_framebuffer_object) {
+    static GLuint s_fbo = 0;
+    if (s_fbo == 0) glGenFramebuffersEXT(1, &s_fbo);
+    GLint read_fb = 0, draw_fb = 0;
+    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING_EXT, &read_fb);
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING_EXT, &draw_fb);
+    glBindFramebufferEXT(GL_DRAW_FRAMEBUFFER_EXT, s_fbo);
+    glFramebufferTexture2DEXT(GL_DRAW_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
+                              GL_TEXTURE_2D, static_cast<GLuint>(iTexHandle), 0);
+    glBlitFramebufferEXT(vp[0], vp[1], vp[0] + vp[2], vp[1] + vp[3],
+                         0, 0, iWidth, iHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+    glFramebufferTexture2DEXT(GL_DRAW_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
+                              GL_TEXTURE_2D, 0, 0);
+    glBindFramebufferEXT(GL_READ_FRAMEBUFFER_EXT, static_cast<GLuint>(read_fb));
+    glBindFramebufferEXT(GL_DRAW_FRAMEBUFFER_EXT, static_cast<GLuint>(draw_fb));
+    return;
+  }
   const int w = std::min(iWidth, static_cast<int>(vp[2]));
   const int h = std::min(iHeight, static_cast<int>(vp[3]));
   glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(iTexHandle));
   glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, vp[0], vp[1], w, h);
   glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void RageDisplay_Legacy::CCClearFramebuffer() {
+  bool write = IsZWriteEnabled();
+  SetZWrite(true);
+  glClearColor(0, 0, 0, 0);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  SetZWrite(write);
 }
 
 void RageDisplay_Legacy::SetEffectMode(EffectMode effect) {

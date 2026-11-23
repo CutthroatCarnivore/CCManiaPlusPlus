@@ -120,6 +120,9 @@ struct NoteFieldRenderArgs {
   float selection_glow;
   float fail_fade;
   float fade_before_targets;
+  // CC fork: NotITG Player:SetHiddenRegions({{beat1, beat2}, ...}) -- notes in
+  // these beat ranges aren't drawn by this field.
+  const std::vector<std::pair<float, float>>* cc_hidden_regions = nullptr;
 };
 
 // NCSplineHandler exists to allow NoteColumnRenderer to have separate
@@ -288,6 +291,7 @@ class NoteDisplay {
   NoteColorSprite m_HoldBottomCap[NUM_HoldType][NUM_ActiveType];
   NoteColorActor m_HoldTail[NUM_HoldType][NUM_ActiveType];
   float m_fYReverseOffsetPixels;
+  float m_fCCHoldHeadYOffset = 0;  // CC fork: head of the hold being drawn
 };
 
 // So, this is a bit screwy, and it's partly because routine forces rendering

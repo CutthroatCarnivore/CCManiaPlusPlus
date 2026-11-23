@@ -32,6 +32,8 @@ ActorFrameTexture::ActorFrameTexture() {
   m_sTextureName = ssprintf("ActorFrameTexture %" PRIu64, i);
 
   m_pRenderTarget = nullptr;
+  // CC fork: AFTs made while a NotITG modfile loads/plays follow NotITG rules.
+  m_bCCNotITG = g_bCCNotITGColumns;
 }
 
 ActorFrameTexture::ActorFrameTexture(const ActorFrameTexture& cpy)
@@ -84,9 +86,32 @@ void ActorFrameTexture::DrawPrimitives() {
     return;
   }
 
-  // CC fork: in NotITG an ActorFrameTexture with no children captures the
-  // screen drawn so far (screen-space warps, feedback trails, etc.).
-  if (m_SubActors.empty() && g_bCCNotITGColumns) {
+  // CC fork: NotITG's ActorFrameTexture works on the framebuffer itself
+  // (side-by-side tested against NotITG 4.9.1): unless the texture is
+  // preserved it first clears the screen, then its children draw straight to
+  // the screen, and finally the screen is copied into the texture. An empty
+  // preserved AFT is therefore a capture of everything drawn so far. The
+  // texture is stored bottom-up, as in NotITG (modfiles use basezoomy(-1)).
+  if (m_bCCNotITG) {
+    if (!m_bPreserveTexture) {
+      DISPLAY->CCClearFramebuffer();
+    }
+    if (!m_SubActors.empty()) {
+      // Children draw in the texture's own pixel space (1 unit = 1 pixel,
+      // origin top-left), like an SM5 AFT, but onto the screen itself.
+      const float w = static_cast<float>(m_pRenderTarget->GetImageWidth());
+      const float h = static_cast<float>(m_pRenderTarget->GetImageHeight());
+      DISPLAY->CenteringPushMatrix();
+      DISPLAY->ChangeCentering(0, 0, 0, 0);
+      DISPLAY->CameraPushMatrix();
+      DISPLAY->LoadMenuPerspective(0, w, h, w / 2, h / 2);
+      DISPLAY->PushMatrix();
+      DISPLAY->LoadIdentity();
+      ActorFrame::DrawPrimitives();
+      DISPLAY->CenteringPopMatrix();
+      DISPLAY->CameraPopMatrix();
+      DISPLAY->PopMatrix();
+    }
     DISPLAY->CCCaptureScreen(m_pRenderTarget->GetTexHandle(),
                              m_pRenderTarget->GetImageWidth(),
                              m_pRenderTarget->GetImageHeight());

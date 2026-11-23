@@ -47,6 +47,7 @@ class ActorFrameTexture : public ActorFrame {
   bool m_bAlphaBuffer;
   bool m_bFloat;
   bool m_bPreserveTexture;
+  bool m_bCCNotITG = false;  // CC fork: NotITG framebuffer semantics
   /** @brief the name of this ActorFrameTexture. */
   std::string m_sTextureName;
 };

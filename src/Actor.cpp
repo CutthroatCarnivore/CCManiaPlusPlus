@@ -23,6 +23,7 @@
 #include "PlayerNumber.h"
 #include "Preference.h"
 #include "RageDisplay.h"
+extern bool g_bCCNotITGColumns;  // CC fork (PlayerOptions.cpp): NotITG modfile loaded
 #include "RageMath.h"
 #include "RageTimer.h"
 #include "RageTypes.h"
@@ -494,6 +495,10 @@ void Actor::Draw() {
       this->DrawPrimitives();
       if (cc_shader) cc_shader->End();
       this->EndDraw();
+    } else if (m_bClearZBuffer && g_bCCNotITGColumns) {
+      // CC fork: NotITG modfiles clear the depth buffer with fully transparent
+      // quads (diffusealpha 0 + clearzbuffer); the clear still has to happen.
+      DISPLAY->ClearZBuffer();
     }
     this->PostDraw();
   }

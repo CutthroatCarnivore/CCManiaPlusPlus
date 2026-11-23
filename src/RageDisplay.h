@@ -304,6 +304,7 @@ class RageDisplay {
   // CC fork: NotITG AFT semantics -- copy what has been drawn so far into a
   // texture (bottom-left origin, like an FBO render).
   virtual void CCCaptureScreen(uintptr_t iTexHandle, int iWidth, int iHeight) {}
+  virtual void CCClearFramebuffer() {}  // CC fork: clear color + depth to transparent black
   virtual bool IsEffectModeSupported(EffectMode effect) {
     return effect == EffectMode_Normal;
   }

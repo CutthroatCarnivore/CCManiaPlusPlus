@@ -48,6 +48,7 @@ class Player : public ActorFrame {
   // The passed in NoteData isn't touched until Load() is called.
   Player(NoteData& nd, bool bVisibleParts = true);
   ~Player();
+  NoteField* CCGetNoteField() { return m_pNoteField; }  // CC fork
 
   virtual void Update(float fDeltaTime);
   virtual void DrawPrimitives();

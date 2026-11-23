@@ -1858,7 +1858,14 @@ void ScreenGameplay::BeginScreen() {
 
   SOUND->PlayOnceFromAnnouncer("gameplay intro");  // crowd cheer
 
-  StartPlayingSong(MIN_SECONDS_TO_STEP, MIN_SECONDS_TO_MUSIC);
+  // CC fork: NotITG starts a modfile song right at beat 0 (no lead-in), and
+  // modfiles depend on it: their first queued commands expect beat >= 0, which
+  // is when they grab the players for proxies (side-by-side tested).
+  if (CCSongIsNotITG(GAMESTATE->m_pCurSong)) {
+    StartPlayingSong(0, 0);
+  } else {
+    StartPlayingSong(MIN_SECONDS_TO_STEP, MIN_SECONDS_TO_MUSIC);
+  }
 }
 
 bool ScreenGameplay::AllAreFailing() {

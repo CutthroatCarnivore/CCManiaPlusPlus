@@ -363,6 +363,45 @@ if Actor then
 		if w and h then self:zoomto(w, h) end
 		return self
 	end
+	-- NotITG Actor:xyz(x, y, z)
+	if rawget(Actor, "xyz") == nil then
+		Actor.xyz = function(self, x, y, z)
+			if x then self:x(x) end
+			if y then self:y(y) end
+			if z then self:z(z) end
+			return self
+		end
+	end
+	-- NotITG Actor:cmd("diffuse,1,0,0,1;zoom,2"): run an old-style command string.
+	if rawget(Actor, "cmd") == nil then
+		Actor.cmd = function(self, s)
+			if type(s) ~= "string" then return self end
+			for part in s:gmatch("[^;]+") do
+				local args = {}
+				for a in part:gmatch("[^,]+") do args[#args + 1] = a:match("^%s*(.-)%s*$") end
+				local name = table.remove(args, 1)
+				if name and name ~= "" then
+					local lname = name:lower()
+					local f = self[name] or self[lname]
+					if type(f) == "function" then
+						for i, a in ipairs(args) do
+							local n = tonumber(a)
+							if n then args[i] = n
+							else
+								-- expressions like SCREEN_CENTER_X+10
+								local g = loadstring("return " .. a)
+								local ok, v = false, nil
+								if g then ok, v = pcall(g) end
+								if ok and v ~= nil then args[i] = v end
+							end
+						end
+						pcall(f, self, unpack(args))
+					end
+				end
+			end
+			return self
+		end
+	end
 end
 
 -- NotITG passes player numbers as 0-based numbers (0 = P1 ... 7 = P8).

@@ -1857,7 +1857,8 @@ Player::PlayerNoteFieldPositioner::PlayerNoteFieldPositioner(
   // CC fork: NotITG whole-player mods (x/y/z in pixels, rotationx/y/z in degrees)
   const PlayerOptions& cco = player->m_pPlayerState->m_PlayerOptions.GetCurrent();
   player->PushPlayerMatrix(
-      x + cco.m_fCC[CCMOD_PLAYERX], skew, center_y + cco.m_fCC[CCMOD_PLAYERY]);
+      x + 100.f * cco.m_fCC[CCMOD_PLAYERX], skew,
+      center_y + 100.f * cco.m_fCC[CCMOD_PLAYERY]);  // mod % = pixels
   float reverse_mult = (reverse ? -1 : 1);
   original_y = player->m_pNoteField->GetY();
   float tilt_degrees = SCALE(tilt, -1.f, +1.f, +30, -30) * reverse_mult;
@@ -1880,10 +1881,10 @@ Player::PlayerNoteFieldPositioner::PlayerNoteFieldPositioner(
   } else {
     player->m_pNoteField->SetZoom(zoom);
   }
-  player->m_pNoteField->SetRotationX(tilt_degrees + cco.m_fCC[CCMOD_ROTATIONX]);
-  player->m_pNoteField->SetRotationY(cco.m_fCC[CCMOD_ROTATIONY]);
-  player->m_pNoteField->SetRotationZ(cco.m_fCC[CCMOD_ROTATIONZ]);
-  player->m_pNoteField->SetZ(cco.m_fCC[CCMOD_PLAYERZ]);
+  player->m_pNoteField->SetRotationX(tilt_degrees + 100.f * cco.m_fCC[CCMOD_ROTATIONX]);  // % = degrees
+  player->m_pNoteField->SetRotationY(100.f * cco.m_fCC[CCMOD_ROTATIONY]);
+  player->m_pNoteField->SetRotationZ(100.f * cco.m_fCC[CCMOD_ROTATIONZ]);
+  player->m_pNoteField->SetZ(100.f * cco.m_fCC[CCMOD_PLAYERZ]);
   player->m_pNoteField->SetSkewX(cco.m_fCC[CCMOD_PLAYERSKEWX]);
   player->m_pNoteField->SetSkewY(cco.m_fCC[CCMOD_PLAYERSKEWY]);
 }
@@ -3796,6 +3797,46 @@ class LunaPlayer : public Luna<Player> {
     return 1;
   }
 
+  // CC fork: NotITG Player:SetHiddenRegions({{beat1, beat2}, ...}): notes in
+  // those beat ranges aren't drawn by this player's field. ClearHiddenRegions().
+  static int SetHiddenRegions(T* p, lua_State* L) {
+    if (p->CCGetNoteField() == nullptr) COMMON_RETURN_SELF;
+    std::vector<std::pair<float, float>>& v = p->CCGetNoteField()->m_CCHiddenRegions;
+    v.clear();
+    if (lua_istable(L, 1)) {
+      const int n = static_cast<int>(lua_objlen(L, 1));
+      for (int i = 1; i <= n; ++i) {
+        lua_rawgeti(L, 1, i);
+        if (lua_istable(L, -1)) {
+          lua_rawgeti(L, -1, 1);
+          lua_rawgeti(L, -2, 2);
+          if (lua_isnumber(L, -2) && lua_isnumber(L, -1)) {
+            float a = static_cast<float>(lua_tonumber(L, -2));
+            float b = static_cast<float>(lua_tonumber(L, -1));
+            if (b < a) std::swap(a, b);
+            v.emplace_back(a, b);
+          }
+          lua_pop(L, 2);
+        }
+        lua_pop(L, 1);
+      }
+    }
+    COMMON_RETURN_SELF;
+  }
+  static int ClearHiddenRegions(T* p, lua_State* L) {
+    if (p->CCGetNoteField()) p->CCGetNoteField()->m_CCHiddenRegions.clear();
+    COMMON_RETURN_SELF;
+  }
+  // CC fork: NotITG Player:SetFarDist(px): how far ahead notes are drawn.
+  static int SetFarDist(T* p, lua_State* L) {
+    if (p->CCGetNoteField()) {
+      double d = luaL_optnumber(L, 1, 0);
+      if (d > 2000000) d = 2000000;  // keep the probe loop sane
+      p->CCGetNoteField()->m_iCCFarDist = static_cast<int>(d);
+    }
+    COMMON_RETURN_SELF;
+  }
+
   LunaPlayer() {
     ADD_METHOD(SetLife);
     ADD_METHOD(ChangeLife);
@@ -3803,6 +3844,9 @@ class LunaPlayer : public Luna<Player> {
     ADD_METHOD(SetActorWithComboPosition);
     ADD_METHOD(GetPlayerTimingData);
     ADD_METHOD(GetNoteData);
+    ADD_METHOD(SetHiddenRegions);
+    ADD_METHOD(ClearHiddenRegions);
+    ADD_METHOD(SetFarDist);
     ADD_GET_SET_METHODS(oitg_zoom_mode);
   }
 };

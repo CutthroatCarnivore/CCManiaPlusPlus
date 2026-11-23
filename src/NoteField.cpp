@@ -841,6 +841,11 @@ void NoteField::CalcPixelsBeforeAndAfterTargets() {
       (int)(m_FieldRenderArgs.draw_pixels_after_targets * draw_scale);
   m_FieldRenderArgs.draw_pixels_before_targets =
       (int)(m_FieldRenderArgs.draw_pixels_before_targets * draw_scale);
+  // CC fork: NotITG Player:SetFarDist(px) -- draw upcoming notes that far out.
+  if (m_iCCFarDist > 0 && m_iCCFarDist > m_FieldRenderArgs.draw_pixels_before_targets) {
+    m_FieldRenderArgs.draw_pixels_before_targets = static_cast<float>(m_iCCFarDist);
+  }
+  m_FieldRenderArgs.cc_hidden_regions = &m_CCHiddenRegions;
 }
 
 void NoteField::DrawPrimitives() {

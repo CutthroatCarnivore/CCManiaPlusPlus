@@ -905,17 +905,28 @@ void XmlFileUtil::MergeIniUnder(XNode* pFrom, XNode* pTo) {
 // CC fork ------------------------------------------------------------------
 void XmlFileUtil::CompileXNodeAttrs(XNode* pNode, const std::string& sFile) {
   Lua* L = LUA->Get();
-  FOREACH_Attr(pNode, pAttr) {
-    // Annotation attributes (_Source, _Dir, _LegacyXml) keep their types;
-    // Condition was already evaluated by EvalLegacyCondition.
-    if (pAttr->first.empty() || pAttr->first[0] == '_' ||
-        pAttr->first == "Condition") {
-      continue;
-    }
+  // NotITG evaluates Type before File (after Condition); some modfiles' "@expr"
+  // attributes depend on that order, so compile those two first, then the rest.
+  auto compile = [&](XAttrs::iterator pAttr) {
     XNodeValue* pValue =
         CompileXMLNodeValue(L, pAttr->first, pAttr->second, sFile);
     delete pAttr->second;
     pAttr->second = pValue;
+  };
+  static const char* const kFirst[] = {"Type", "File"};
+  for (const char* name : kFirst) {
+    auto it = pNode->m_attrs.find(name);
+    if (it != pNode->m_attrs.end()) compile(it);
+  }
+  FOREACH_Attr(pNode, pAttr) {
+    // Annotation attributes (_Source, _Dir, _LegacyXml) keep their types;
+    // Condition was already evaluated by EvalLegacyCondition.
+    if (pAttr->first.empty() || pAttr->first[0] == '_' ||
+        pAttr->first == "Condition" || pAttr->first == "Type" ||
+        pAttr->first == "File") {
+      continue;
+    }
+    compile(pAttr);
   }
   LUA->Release(L);
 }

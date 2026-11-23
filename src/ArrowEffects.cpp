@@ -597,9 +597,18 @@ float ArrowEffects::GetYOffset(
                     curr_options->m_fCCCol[CCMOD_SCROLLSPEEDMULT][c];
   }
 
+  // CC fork: NotITG centered2 slides the arrows along their paths;
+  // 100% = one arrow (64 px), independent of the scroll speed.
+  float cc_centered2 = 0;
+  {
+    const int c = (iCol >= 0 && iCol < CC_MAX_COLS) ? iCol : 0;
+    cc_centered2 = (curr_options->m_fCC[CCMOD_CENTERED2] +
+                    curr_options->m_fCCCol[CCMOD_CENTERED2][c]) * ARROW_SIZE;
+  }
+
   // don't mess with the arrows after they've crossed 0
   if (fYOffset < 0) {
-    return fYOffset * fScrollSpeed;
+    return fYOffset * fScrollSpeed + cc_centered2;
   }
 
   const float* fAccels = curr_options->m_fAccels;
@@ -706,7 +715,7 @@ float ArrowEffects::GetYOffset(
   fYOffset *= fScrollSpeed;
   fPeakYOffsetOut *= fScrollSpeed;
 
-  return fYOffset;
+  return fYOffset + cc_centered2;
 }
 
 static void ArrowGetReverseShiftAndScale(

@@ -728,7 +728,11 @@ void Actor::BeginDraw() {
   {
     const float rotationX = m_pTempState->rotation.x + m_baseRotation.x;
     const float rotationY = m_pTempState->rotation.y + m_baseRotation.y;
-    const float rotationZ = m_pTempState->rotation.z + m_baseRotation.z;
+    // CC fork: under a NotITG modfile the noteskin's base rotation (left/right
+    // arrows drawn from rotated down art) is applied innermost, so zoomx/tinyx
+    // and skew act on screen axes like NotITG instead of the rotated art's axes.
+    const float rotationZ = m_pTempState->rotation.z +
+        ((g_bCCNotITGColumns && m_baseRotation.z != 0) ? 0.0f : m_baseRotation.z);
 
     if (rotationX != 0 || rotationY != 0 || rotationZ != 0) {
       RageMatrix m;
@@ -783,6 +787,12 @@ void Actor::BeginDraw() {
   const float skewY = m_pTempState->fSkewY;
   if (skewY != 0) {
     DISPLAY->SkewY(skewY);
+  }
+
+  if (g_bCCNotITGColumns && m_baseRotation.z != 0) {  // CC fork: see rotation above
+    RageMatrix m;
+    RageMatrixRotationXYZ(&m, 0, 0, m_baseRotation.z);
+    DISPLAY->PreMultMatrix(m);
   }
 
   // CC fork: NotITG secondary transform

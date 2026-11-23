@@ -64,6 +64,9 @@
   X(ATTENUATEXOFFSET, "attenuatexoffset") \
   X(BEATSIZE, "beatsize") \
   X(CENTEREDPATH, "centeredpath") \
+  X(CENTERED2, "centered2") \
+  X(ORIENT, "orient") \
+  X(ORIENTOFFSET, "orientoffset") \
   X(CONFUSIONZOFFSET, "confusionzoffset") \
   X(CUBICXOFFSET, "cubicxoffset") \
   X(CUBICZOFFSET, "cubiczoffset") \
@@ -83,6 +86,7 @@
   X(GRAIN, "grain") \
   X(HALGUN, "halgun") \
   X(HIDEHOLDS, "hideholds") \
+  X(HIDEFIELD, "hide") \
   X(HOLDSTEALTH, "holdstealth") \
   X(LONGBOY, "longboy") \
   X(LONGBOYS, "longboys") \

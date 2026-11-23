@@ -98,11 +98,25 @@ CCNull = setmetatable({}, {
 	__tostring = function() return "CCNull" end,
 })
 
+CC_OBJECT_GETTER_WORDS = { "Child", "Texture", "Shader", "Screen", "Song", "Steps", "Player",
+	"Proxy", "Target", "Wrapper", "Parent", "Actor", "Frame", "Options", "State", "Profile",
+	"Manager", "NoteData", "Timing", "Font", "Text", "Model", "Course", "Trail", "Style",
+	"Display", "Name", "Path", "Dir", "Group", "Title", "Artist", "Table", "List", "Command",
+	"Saved", "Stats", "Score", "Vendor", "Renderer", "Version" }
+
 local function stub_for(cls, name)
 	return function(self, ...)
 		note(cls, name)
 		if name:find("^Is") or name:find("^Has") then return false end
-		if name:find("^Get") then return CCNull end
+		if name:find("^Get") or name:find("^get") then
+			-- Getters for things (children, textures, songs...) get a chainable null object;
+			-- every other getter is numeric in NotITG, so return 0 (a table there errors).
+			local rest = name:gsub("^[Gg]et", "")
+			for _, w in ipairs(CC_OBJECT_GETTER_WORDS) do
+				if rest:find(w) then return CCNull end
+			end
+			return 0
+		end
 		return self
 	end
 end
@@ -134,6 +148,13 @@ for _, c in ipairs({ "Actor", "GameState", "PlayerState", "ScreenManager",
 end
 
 -- Real mappings -----------------------------------------------------------
+-- NotITG Profile:GetSaved(): a Lua table modfiles can keep data in (kept for this session).
+if Profile then
+	Profile.GetSaved = function(self)
+		CC_PROFILE_SAVED = CC_PROFILE_SAVED or {}
+		return CC_PROFILE_SAVED
+	end
+end
 if GameState then
 	-- ApplyModifiers is implemented in C++ (GameState.cpp, CC fork).
 	GameState.GetVersionDate = function() return "20241010" end
@@ -600,6 +621,19 @@ if Actor then
 	Actor.GetEffectX = function(self) return self:GetX() end
 	Actor.GetEffectY = function(self) return self:GetY() end
 	Actor.GetEffectZ = function(self) return self:GetZ() end
+	Actor.GetEffectRotationX = function(self) return self:GetRotationX() end
+	Actor.GetEffectRotationY = function(self) return self:GetRotationY() end
+	Actor.GetEffectRotationZ = function(self) return self:GetRotationZ() end
+	Actor.GetCurrentZoomX = function(self) return self:GetZoomX() end
+	Actor.GetCurrentZoomY = function(self) return self:GetZoomY() end
+	Actor.GetCurrentZoomZ = function(self) return self:GetZoomZ() end
+	Actor.GetCurrentRotationX = function(self) return self:GetRotationX() end
+	Actor.GetCurrentRotationY = function(self) return self:GetRotationY() end
+	Actor.GetCurrentRotationZ = function(self) return self:GetRotationZ() end
+	if not rawget(Actor, "GetHidden") then
+		Actor.GetHidden = function(self) return not self:GetVisible() end
+	end
+	Actor.getrotation = function(self) return self:GetRotationX(), self:GetRotationY(), self:GetRotationZ() end
 end
 
 -- NotITG ActorFrame:GetChildren() returns an ordered array, and GetChild()

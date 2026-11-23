@@ -857,6 +857,11 @@ void NoteField::DrawPrimitives() {
   // ArrowEffects::Update call moved because having it happen once per
   // NoteField (which means twice in two player) seemed wasteful. -Kyz
 
+  {  // CC fork: NotITG "hide" hides this player's whole notefield
+    const PlayerOptions& po = m_pPlayerState->m_PlayerOptions.GetCurrent();
+    if (po.m_fCC[CCMOD_HIDEFIELD] >= 0.5f) return;
+  }
+
   if (m_drawing_board_primitive) {
     CalcPixelsBeforeAndAfterTargets();
     DrawBoard(

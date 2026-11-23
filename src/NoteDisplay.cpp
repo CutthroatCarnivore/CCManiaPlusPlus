@@ -1523,6 +1523,22 @@ void NoteDisplay::DrawActor(
   column_args.spae_zoom_for_beat(
       m_pPlayerState, spline_beat, sp_zoom, ae_zoom, column_args.column,
       fYOffset);
+  {  // CC fork: NotITG orient -- turn the arrow to face along its path
+    const float orient = cc_po.m_fCC[CCMOD_ORIENT] + cc_po.m_fCCCol[CCMOD_ORIENT][cc_c];
+    if (orient != 0 && column_args.pos_handler->m_spline_mode != NCSM_Position) {
+      RageVector3 sp2, ae2;
+      column_args.spae_pos_for_beat(m_pPlayerState, spline_beat, fYOffset + 1.0f,
+                                    m_fYReverseOffsetPixels, sp2, ae2);
+      const float dx = (sp2.x + ae2.x) - (sp_pos.x + ae_pos.x);
+      const float dy = (sp2.y + ae2.y) - (sp_pos.y + ae_pos.y);
+      if (dx != 0 || dy != 0) {
+        const float sy = dy < 0 ? -1.0f : 1.0f;  // reverse: path runs upward
+        const float ang = -std::atan2(dx * sy, std::max(std::abs(dy), 1e-6f)) * 180.0f / PI;
+        ae_rot.z += orient * ang +
+                    (cc_po.m_fCC[CCMOD_ORIENTOFFSET] + cc_po.m_fCCCol[CCMOD_ORIENTOFFSET][cc_c]) * 100.0f;
+      }
+    }
+  }
   column_args.SetPRZForActor(
       pActor, sp_pos, ae_pos, sp_rot, ae_rot, sp_zoom, ae_zoom);
   {  // CC fork: NotITG noteskew

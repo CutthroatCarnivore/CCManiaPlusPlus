@@ -1565,7 +1565,7 @@ void NoteDisplay::DrawActor(
   }
   float cc_spline_skew = 0, cc_spline_alpha = 1;
   {  // CC fork: NotITG rotation/size/tiny/skew/stealth splines
-    const int pn = static_cast<int>(m_pPlayerState->m_PlayerNumber);
+    const int pn = CCSplineSlot(m_pPlayerState);
     if (CCSplineAny(pn)) {
       const int col = column_args.column;
       ae_rot.x += CCSplineEval(pn, CCSP_ROTX, col, fYOffset);
@@ -1593,7 +1593,7 @@ void NoteDisplay::DrawActor(
     RageColor d = diffuse;
     if (cc_spline_alpha < 1.0f) d.a *= cc_spline_alpha;  // CC fork: stealth spline
     float gc[4];
-    const int cc_pn = static_cast<int>(m_pPlayerState->m_PlayerNumber);
+    const int cc_pn = CCSplineSlot(m_pPlayerState);
     if (CCGradientEval(cc_pn, CCGR_ARROW, column_args.column, fYOffset, gc)) {
       d.r *= gc[0]; d.g *= gc[1]; d.b *= gc[2]; d.a *= gc[3];  // arrow gradient
     }
@@ -1602,7 +1602,7 @@ void NoteDisplay::DrawActor(
   {
     RageColor gl = glow;
     float gc[4];
-    if (CCGradientEval(static_cast<int>(m_pPlayerState->m_PlayerNumber), CCGR_STEALTH,
+    if (CCGradientEval(CCSplineSlot(m_pPlayerState), CCGR_STEALTH,
                        column_args.column, fYOffset, gc)) {
       gl.r = gc[0]; gl.g = gc[1]; gl.b = gc[2];  // stealth gradient tints the fade
     }
@@ -1852,7 +1852,7 @@ static void CCDrawArrowPath(
     sv.c = RageColor(1, 1, 1, alpha);
     {
       float gc[4];
-      if (CCGradientEval(static_cast<int>(ps->m_PlayerNumber), CCGR_PATH, col, y, gc))
+      if (CCGradientEval(CCSplineSlot(ps), CCGR_PATH, col, y, gc))
         sv.c = RageColor(gc[0], gc[1], gc[2], alpha * gc[3]);
     }
     sv.t = RageVector2(0, 0);

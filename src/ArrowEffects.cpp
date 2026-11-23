@@ -1664,7 +1664,7 @@ RageVector3 ArrowEffects::CCPosOffset(
   }
   if ((v = CCV(CUBICXOFFSET)) != 0) r.x += v * yb * yb * yb * 0.0f;
   {  // CC fork: NotITG splines (values in percent of an arrow)
-    const int pn = static_cast<int>(pPlayerState->m_PlayerNumber);
+    const int pn = CCSplineSlot(pPlayerState);
     if (CCSplineAny(pn)) {
       r.x += CCSplineEval(pn, CCSP_X, iCol, fYOffset) * ARROW_SIZE / 100.0f;
       r.y += CCSplineEval(pn, CCSP_Y, iCol, fYOffset) * ARROW_SIZE / 100.0f;

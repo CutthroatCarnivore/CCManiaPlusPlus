@@ -5,8 +5,21 @@
 #include <utility>
 #include <vector>
 
+#include "PlayerState.h"
+#include "ScreenGameplay.h"  // CC_NOTITG_EXTRA_PLAYERS
+
+PlayerState* CCGetExtraPlayerState(int idx);  // ScreenGameplay.cpp
+
+int CCSplineSlot(const PlayerState* ps) {
+  if (ps == nullptr) return -1;
+  for (int i = 0; i < CC_NOTITG_EXTRA_PLAYERS; ++i) {
+    if (CCGetExtraPlayerState(i) == ps) return 2 + i;
+  }
+  return static_cast<int>(ps->m_PlayerNumber);
+}
+
 namespace {
-constexpr int kPlayers = 2;
+constexpr int kPlayers = 2 + CC_NOTITG_EXTRA_PLAYERS;
 constexpr int kCols = 16;
 constexpr int kPoints = 40;
 
@@ -19,7 +32,7 @@ struct Spline {
 };
 
 Spline g_splines[kPlayers][NUM_CCSP][kCols];
-int g_count[kPlayers] = {0, 0};
+int g_count[kPlayers] = {};
 
 void Rebuild(Spline& s) {
   s.sorted.clear();
@@ -116,7 +129,7 @@ struct Gradient {
   float col[kGradPoints][4] = {};
 };
 Gradient g_grad[kPlayers][NUM_CCGR][kCols];
-bool g_grad_any[kPlayers] = {false, false};
+bool g_grad_any[kPlayers] = {};
 
 template <typename F>
 void ForCols(int column, F f) {

@@ -8,6 +8,12 @@
 // rotations: degrees, size: like Mini, tiny: like Tiny, stealth: like Stealth,
 // skew: like NoteSkew).
 
+class PlayerState;
+// Storage slot for a player's splines/gradients: 0-1 for players 1-2, 2-7 for
+// NotITG's extra players 3-8 (they share PlayerNumber 1, so the number alone
+// would mix their splines with player 1's).
+int CCSplineSlot(const PlayerState* ps);
+
 enum CCSplineType {
   CCSP_X, CCSP_Y, CCSP_Z, CCSP_ROTX, CCSP_ROTY, CCSP_ROTZ,
   CCSP_SIZE, CCSP_SKEW, CCSP_STEALTH, CCSP_TINY, NUM_CCSP

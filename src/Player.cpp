@@ -3843,14 +3843,14 @@ class LunaPlayer : public Luna<Player> {
   static int CCSetSpline(T* p, lua_State* L, int type) {
     const PlayerState* ps = p->GetPlayerState();
     if (ps == nullptr) COMMON_RETURN_SELF;
-    CCSplineSetPoint(static_cast<int>(ps->m_PlayerNumber), type, IArg(1),
+    CCSplineSetPoint(CCSplineSlot(ps), type, IArg(1),
                      IArg(2), FArg(3), FArg(4));
     COMMON_RETURN_SELF;
   }
   static int CCResetSpline(T* p, lua_State* L, int type) {
     const PlayerState* ps = p->GetPlayerState();
     if (ps == nullptr) COMMON_RETURN_SELF;
-    CCSplineReset(static_cast<int>(ps->m_PlayerNumber), type,
+    CCSplineReset(CCSplineSlot(ps), type,
                   lua_isnumber(L, 1) ? IArg(1) : -1);
     COMMON_RETURN_SELF;
   }
@@ -3872,7 +3872,7 @@ class LunaPlayer : public Luna<Player> {
   // CC fork: NotITG arrow/stealth/path gradients
   static int CCPn(T* p) {
     const PlayerState* ps = p->GetPlayerState();
-    return ps ? static_cast<int>(ps->m_PlayerNumber) : -1;
+    return ps ? CCSplineSlot(ps) : -1;
   }
 #define CC_GRADIENT_METHODS(Name, Type) \
   static int SetNum##Name##GradientPoints(T* p, lua_State* L) { \

@@ -976,12 +976,18 @@ void NoteDisplay::DrawHoldPart(
     // fX and fZ are sp_pos.x + ae_pos.x and sp_pos.z + ae_pos.z. -Kyz
     // fY is the actual y position that should be used, not whatever spae
     // fetched from ArrowEffects. -Kyz
+    // CC fork: the NotITG y offsets taps get through CCPosOffset (movey,
+    // bumpyy, cubicy, drunky, spiraly, y splines) apply to hold bodies too.
+    const float cc_y_extra =
+        ArrowEffects::CCPosOffset(m_pPlayerState, column_args.column, fYOffset).y;
     switch (column_args.pos_handler->m_spline_mode) {
       case NCSM_Disabled:
-        ae_pos.y = fY + ArrowEffects::GetMoveY(column_args.column);
+        ae_pos.y = fY + ArrowEffects::GetMoveY(column_args.column) +
+                   cc_y_extra;
         break;
       case NCSM_Offset:
-        ae_pos.y = fY + ArrowEffects::GetMoveY(column_args.column);
+        ae_pos.y = fY + ArrowEffects::GetMoveY(column_args.column) +
+                   cc_y_extra;
         column_args.pos_handler->EvalDerivForBeat(
             column_args.song_beat, cur_beat, sp_pos_forward);
         RageVec3Normalize(&sp_pos_forward, &sp_pos_forward);
@@ -1335,6 +1341,14 @@ void NoteDisplay::DrawHold(
   // the receptor.
   bool bStartIsPastPeak = true;
   float fStartYOffset = 0;
+  {  // CC fork: a held hold starts at the receptor, and NotITG centered2
+     // moves the receptor along the arrow path (see GetYOffset).
+    const PlayerOptions& cc_po = m_pPlayerState->m_PlayerOptions.GetCurrent();
+    const int cc_c = (column_args.column >= 0 && column_args.column < CC_MAX_COLS)
+                         ? column_args.column : 0;
+    fStartYOffset = (cc_po.m_fCC[CCMOD_CENTERED2] +
+                     cc_po.m_fCCCol[CCMOD_CENTERED2][cc_c]) * ARROW_SIZE;
+  }
   if (tn.HoldResult.bActive && tn.HoldResult.fLife > 0)
     ;  // use the default values filled in above
   else {

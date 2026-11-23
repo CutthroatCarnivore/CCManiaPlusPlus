@@ -1189,13 +1189,6 @@ float ArrowEffects::GetMoveX(int iCol) {
   if (fMoves[iCol] != 0) {
     f += ARROW_SIZE * fMoves[iCol];
   }
-  // CC fork: NotITG movex (all columns) and movexN (one column).
-  {
-    const int c = (iCol >= 0 && iCol < CC_MAX_COLS) ? iCol : 0;
-    const float cc = curr_options->m_fCC[CCMOD_MOVEX] +
-                     curr_options->m_fCCCol[CCMOD_MOVEX][c];
-    if (cc != 0) f += ARROW_SIZE * cc;
-  }
   return f;
 }
 
@@ -1205,13 +1198,6 @@ float ArrowEffects::GetMoveY(int iCol) {
   if (fMoves[iCol] != 0) {
     f += ARROW_SIZE * fMoves[iCol];
   }
-  // CC fork: NotITG movey (all columns) and moveyN (one column).
-  {
-    const int c = (iCol >= 0 && iCol < CC_MAX_COLS) ? iCol : 0;
-    const float cc = curr_options->m_fCC[CCMOD_MOVEY] +
-                     curr_options->m_fCCCol[CCMOD_MOVEY][c];
-    if (cc != 0) f += ARROW_SIZE * cc;
-  }
   return f;
 }
 
@@ -1220,13 +1206,6 @@ float ArrowEffects::GetMoveZ(int iCol) {
   float f = 0;
   if (fMoves[iCol] != 0) {
     f += ARROW_SIZE * fMoves[iCol];
-  }
-  // CC fork: NotITG movez (all columns) and movezN (one column).
-  {
-    const int c = (iCol >= 0 && iCol < CC_MAX_COLS) ? iCol : 0;
-    const float cc = curr_options->m_fCC[CCMOD_MOVEZ] +
-                     curr_options->m_fCCCol[CCMOD_MOVEZ][c];
-    if (cc != 0) f += ARROW_SIZE * cc;
   }
   return f;
 }

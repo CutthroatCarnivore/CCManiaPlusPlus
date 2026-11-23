@@ -892,7 +892,13 @@ bool PlayerOptions::FromOneModString(
   // capitals ("Tiny0" does nothing there, "tiny0" works), and mod charts rely
   // on that (One Last Time eases "Tiny0" to -1500%). Global names like
   // "Flip" stay case-insensitive.
-  if (g_bCCNotITGColumns && !sBit.empty() && isdigit(sBit.back())) {
+  // Speed mods ("C400", "M550", "X2"...) are a single letter before the
+  // number and stay case-insensitive in NotITG.
+  size_t cc_letters = 0;
+  while (cc_letters < sBit.size() && isalpha((unsigned char)sBit[cc_letters])) {
+    ++cc_letters;
+  }
+  if (g_bCCNotITGColumns && cc_letters > 1 && isdigit(sBit.back())) {
     std::string orig = sOneMod;
     Trim(orig);
     const size_t sp = orig.find_last_of(' ');

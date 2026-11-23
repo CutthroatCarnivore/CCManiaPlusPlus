@@ -476,6 +476,19 @@ do
 		end
 	end
 end
+-- NotITG: THEME:GetPath(EC_SOUNDS, "name") (category constant + element name)
+if ThemeManager and rawget(ThemeManager, "GetPath") == nil then
+	ThemeManager.GetPath = function(self, cat, name)
+		name = tostring(name or "")
+		local fn = "GetPathS"
+		if EC_GRAPHICS ~= nil and cat == EC_GRAPHICS then fn = "GetPathG"
+		elseif EC_FONTS ~= nil and cat == EC_FONTS then fn = "GetPathF"
+		elseif EC_BGANIMATIONS ~= nil and cat == EC_BGANIMATIONS then fn = "GetPathB" end
+		local ok, r = pcall(function() return self[fn](self, "", name, true) end)
+		if ok and type(r) == "string" then return r end
+		return ""
+	end
+end
 if PlayerStageStats and rawget(PlayerStageStats, "SetTapNoteScores") == nil then
 	PlayerStageStats.SetTapNoteScores = function(self, tns, n) end
 end

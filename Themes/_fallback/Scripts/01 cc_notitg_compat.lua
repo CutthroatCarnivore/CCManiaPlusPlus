@@ -155,12 +155,27 @@ if Profile then
 		return CC_PROFILE_SAVED
 	end
 end
+-- NotITG Song:GetSpellCards(): the song's spell cards as a list of tables.
+-- CC doesn't show spell cards, so a song has none (Unkai iterates this list).
+if Song then
+	Song.GetSpellCards = function(self) return {} end
+end
+-- NotITG Actor:GetXMLDir(): folder of the .xml file the modfile is loading from
+-- (Unkai's module loader builds its require() paths from it).
+if Actor and ActorUtil and ActorUtil.CCCurrentXMLDir then
+	Actor.GetXMLDir = function(self) return ActorUtil.CCCurrentXMLDir() end
+end
 if GameState then
 	-- ApplyModifiers is implemented in C++ (GameState.cpp, CC fork).
 	GameState.GetVersionDate = function() return "20241010" end
 	-- NotITG: file/folder names inside a directory, returned as MULTIPLE values
 	GameState.GetFileStructure = function(self, path)
 		if not path then return end
+		-- a file (not a folder): report it, so "does this file exist" checks pass
+		if path:sub(-1) ~= "/" and FILEMAN:DoesFileExist(path)
+			and ActorUtil.GetFileType(path) ~= "FileType_Directory" then
+			return (path:match("[^/]+$"))
+		end
 		if path:sub(-1) ~= "/" then path = path .. "/" end
 		local out = {}
 		for _, f in ipairs(FILEMAN:GetDirListing(path .. "*", false, false) or {}) do
@@ -515,6 +530,25 @@ end
 if GameState then
 	GameState.GetSongTime = function(self) return self:GetCurMusicSeconds() end
 	GameState.GetSongTimeVisible = function(self) return self:GetCurMusicSeconds() end
+	GameState.GetSongBeatVisible = function(self)
+		local pos = self:GetSongPosition()
+		if pos and pos.GetSongBeatVisible then return pos:GetSongBeatVisible() end
+		return self:GetSongBeat()
+	end
+	-- NotITG returns the master player as a number (0 = P1); ITGmania themes
+	-- need the enum, so only mod-chart code (files under /Songs/) gets the number.
+	if GameState.GetMasterPlayerNumber and getfenv and debug and debug.getinfo then
+		local cc_gmpn = GameState.GetMasterPlayerNumber
+		GameState.GetMasterPlayerNumber = function(self)
+			local pn = cc_gmpn(self)
+			local info = debug.getinfo(2, "S")
+			if CCIsNotITGSong and CCIsNotITGSong() and info and info.source
+				and info.source:lower():find("/songs/", 1, true) then
+				return pn == PLAYER_2 and 1 or 0
+			end
+			return pn
+		end
+	end
 	GameState.SetSongEndTime = function(self) return self end
 	GameState.FinishSong = function(self) return self end
 	GameState.ForceSmoothLines = function(self) return self end
@@ -597,13 +631,16 @@ do
 end
 -- NotITG: THEME:GetPath(EC_SOUNDS, "name") (category constant + element name)
 if ThemeManager and rawget(ThemeManager, "GetPath") == nil then
-	ThemeManager.GetPath = function(self, cat, name)
+	ThemeManager.GetPath = function(self, cat, name, element)
 		name = tostring(name or "")
 		local fn = "GetPathS"
 		if EC_GRAPHICS ~= nil and cat == EC_GRAPHICS then fn = "GetPathG"
 		elseif EC_FONTS ~= nil and cat == EC_FONTS then fn = "GetPathF"
 		elseif EC_BGANIMATIONS ~= nil and cat == EC_BGANIMATIONS then fn = "GetPathB" end
-		local ok, r = pcall(function() return self[fn](self, "", name, true) end)
+		-- 3-argument form: (category, class, element), e.g. (EC_SOUNDS, "Player", "mine")
+		local class, el = "", name
+		if element ~= nil then class, el = name, tostring(element) end
+		local ok, r = pcall(function() return self[fn](self, class, el, true) end)
 		if ok and type(r) == "string" then return r end
 		return ""
 	end

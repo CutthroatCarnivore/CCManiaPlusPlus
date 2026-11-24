@@ -620,23 +620,29 @@ float ArrowEffects::GetYOffset(
 
   float fYAdjust = 0;  // fill this in depending on PlayerOptions
 
-  if (fAccels[PlayerOptions::ACCEL_BOOST] != 0) {
+  // CC fork: NotITG per-column boost/brake ("boost0".."brake3") add to the
+  // global ones for that column only (Holic, Sakura Storm).
+  const int cc_ab = (iCol >= 0 && iCol < CC_MAX_COLS) ? iCol : 0;
+  const float cc_boost = fAccels[PlayerOptions::ACCEL_BOOST] +
+                         curr_options->m_fCCCol[CCMOD_COLBOOST][cc_ab];
+  const float cc_brake = fAccels[PlayerOptions::ACCEL_BRAKE] +
+                         curr_options->m_fCCCol[CCMOD_COLBRAKE][cc_ab];
+
+  if (cc_boost != 0) {
     float fEffectHeight = GetNoteFieldHeight();
     float fNewYOffset =
         fYOffset * 1.5f / ((fYOffset + fEffectHeight / 1.2f) / fEffectHeight);
-    float fAccelYAdjust =
-        fAccels[PlayerOptions::ACCEL_BOOST] * (fNewYOffset - fYOffset);
+    float fAccelYAdjust = cc_boost * (fNewYOffset - fYOffset);
     // TRICKY: Clamp this value, or else BOOST+BOOMERANG will draw a ton of
     // arrows on the screen.
     rage_clamp(fAccelYAdjust, BOOST_MOD_MIN_CLAMP, BOOST_MOD_MAX_CLAMP);
     fYAdjust += fAccelYAdjust;
   }
-  if (fAccels[PlayerOptions::ACCEL_BRAKE] != 0) {
+  if (cc_brake != 0) {
     float fEffectHeight = GetNoteFieldHeight();
     float fScale = SCALE(fYOffset, 0.f, fEffectHeight, 0, 1.f);
     float fNewYOffset = fYOffset * fScale;
-    float fBrakeYAdjust =
-        fAccels[PlayerOptions::ACCEL_BRAKE] * (fNewYOffset - fYOffset);
+    float fBrakeYAdjust = cc_brake * (fNewYOffset - fYOffset);
     // TRICKY: Clamp this value the same way as BOOST so that in BOOST+BRAKE,
     // BRAKE doesn't overpower BOOST
     rage_clamp(fBrakeYAdjust, BRAKE_MOD_MIN_CLAMP, BRAKE_MOD_MAX_CLAMP);

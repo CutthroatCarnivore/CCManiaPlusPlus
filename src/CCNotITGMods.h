@@ -67,6 +67,8 @@
   X(CENTERED2, "centered2") \
   X(COLTWIRL, "cc_coltwirl") \
   X(COLROLL, "cc_colroll") \
+  X(COLBOOST, "cc_colboost") \
+  X(COLBRAKE, "cc_colbrake") \
   X(ORIENT, "orient") \
   X(ORIENTOFFSET, "orientoffset") \
   X(CONFUSIONZOFFSET, "confusionzoffset") \

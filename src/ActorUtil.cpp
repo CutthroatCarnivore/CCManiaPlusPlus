@@ -135,6 +135,11 @@ bool ActorUtil::ResolvePath(
 // CC fork: >0 while a NotITG/OpenITG .xml actor file loads; Actor's constructor
 // reads it to pick that engine's transform order (rotate, then zoom).
 int g_iCCLegacyXmlDepth = 0;
+// CC fork: folders of the NotITG .xml files being loaded (innermost last) and
+// of the last top-level one, for NotITG's Actor:GetXMLDir() (Unkai's module
+// loader finds its .lua files with it).
+static std::vector<std::string> g_vCCXmlDirStack;
+static std::string g_sCCLastXmlDir;
 
 namespace {
 std::string GetLegacyActorClass(XNode* pActor) {
@@ -514,9 +519,14 @@ Actor* ActorUtil::MakeActor(const std::string& sPath_, Actor* pParentActor) {
       // node's attributes are evaluated in document order as it loads
       // (see ActorUtil::LoadFromNode).
       XmlFileUtil::AnnotateXNodeTree(&xml, sPath);
+      if (s_iCCXmlDepth == 0) {
+        g_sCCLastXmlDir = Dirname(sPath);
+      }
+      g_vCCXmlDirStack.push_back(Dirname(sPath));
       ++s_iCCXmlDepth;
       Actor* pRet = LoadFromNode(&xml, pParentActor);
       --s_iCCXmlDepth;
+      g_vCCXmlDirStack.pop_back();
       return pRet;
     }
     case FT_Directory: {
@@ -813,6 +823,12 @@ int ResolvePath(lua_State* L) {
   LuaHelpers::Push(L, sPath);
   return 1;
 }
+// CC fork: folder of the NotITG .xml being loaded (or the last one loaded).
+int CCCurrentXMLDir(lua_State* L) {
+  LuaHelpers::Push(L, g_vCCXmlDirStack.empty() ? g_sCCLastXmlDir
+                                               : g_vCCXmlDirStack.back());
+  return 1;
+}
 int IsRegisteredClass(lua_State* L) {
   lua_pushboolean(L, IsRegistered(SArg(1)));
   return 1;
@@ -845,6 +861,7 @@ const luaL_Reg ActorUtilTable[] = {
     LIST_METHOD(GetFileType),
     LIST_METHOD(ResolvePath),
     LIST_METHOD(IsRegisteredClass),
+    LIST_METHOD(CCCurrentXMLDir),
     LIST_METHOD(LoadAllCommands),
     LIST_METHOD(LoadAllCommandsFromName),
     LIST_METHOD(LoadAllCommandsAndSetXY),

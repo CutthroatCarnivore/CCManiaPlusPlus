@@ -937,6 +937,8 @@ bool PlayerOptions::FromOneModString(
       // Per-column forms of stock mods that ITGmania only has globally.
       if (base == "twirl") base = "cc_coltwirl";
       else if (base == "roll") base = "cc_colroll";
+      else if (base == "boost") base = "cc_colboost";
+      else if (base == "brake") base = "cc_colbrake";
       cc = CCModFromName(base);
       if (cc >= 0) {
         int col = StringToInt(sBit.substr(d + 1)) - CCColBase();

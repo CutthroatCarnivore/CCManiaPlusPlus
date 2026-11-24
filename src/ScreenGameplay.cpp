@@ -781,6 +781,13 @@ void ScreenGameplay::Init() {
     */
     pi->GetPlayerState()->m_NotefieldZoom = std::min(1.0f, field_zoom);
 
+    // CC fork: NotITG starts its extra players P3..P8 at the screen center
+    // (logged in NotITG 4.9.1: x = SCREEN_CENTER_X, y = 240), not on P1's
+    // spot. Mod charts that never move them rely on that (WILD RUSH's
+    // four-field cross).
+    if (pi->m_bIsDummy && pi->m_pPlayer->m_bCCExtraPlayer) {
+      player_x = SCREEN_CENTER_X;
+    }
     pi->m_pPlayer->SetX(player_x);
     pi->m_pPlayer->RunCommands(PLAYER_INIT_COMMAND);
     // ActorUtil::LoadAllCommands(pi->m_pPlayer, m_sName);
@@ -1217,6 +1224,9 @@ void ScreenGameplay::InitSongQueues() {
 ScreenGameplay::~ScreenGameplay() {
   CCRemoveSleepingPlayer();  // CC fork
   CCClearExtraPlayerStates();  // CC fork
+  FOREACH_PlayerNumber(cc_pn) {  // CC fork: the shaders' owners are going away
+    for (CCShader*& s : GAMESTATE->m_pPlayerState[cc_pn]->m_pCCNoteShader) s = nullptr;
+  }
   GAMESTATE->m_AdjustTokensBySongCostForFinalStageCheck = true;
   if (this->IsFirstUpdate()) {
     /* We never received any updates. That means we were deleted without being
@@ -1388,6 +1398,10 @@ void ScreenGameplay::ReloadCurrentSong() {
 void ScreenGameplay::LoadNextSong() {
   CCSplineResetAll();  // CC fork: NotITG splines belong to one song
   CCGradientResetAll();
+  CCNoteTypeResetAll();
+  for (PlayerInfo& cc_pi : m_vPlayerInfo) {  // CC fork: note shaders are per song
+    for (CCShader*& s : cc_pi.GetPlayerState()->m_pCCNoteShader) s = nullptr;
+  }
   GAMESTATE->ResetMusicStatistics();
 
   FOREACH_EnabledPlayerInfo(m_vPlayerInfo, pi) {
@@ -1994,6 +2008,22 @@ void ScreenGameplay::Update(float fDeltaTime) {
       PlayerState* ps = pi.GetPlayerState();
       ps->m_Position = GAMESTATE->m_pPlayerState[PLAYER_1]->m_Position;
       ps->Update(fDeltaTime);
+      // SetInputPlayer(pn): the field is played by that side. A human side
+      // steps on it (ScreenGameplay::Input); a side on autoplay, or one
+      // nobody joined (solo play of a 2-player chart), plays it itself.
+      const Player* pl = pi.m_pPlayer;
+      PlayerController pc = PC_AUTOPLAY;
+      if (pl->m_bCCInputSet && pl->m_iCCController <= 0 &&
+          pl->m_iCCInputPlayer >= 0 && pl->m_iCCInputPlayer < NUM_PLAYERS) {
+        const PlayerNumber src = static_cast<PlayerNumber>(pl->m_iCCInputPlayer);
+        if (GAMESTATE->IsHumanPlayer(src) && src != m_CCSleepingPN &&
+            GamePreferences::m_AutoPlay == PC_HUMAN &&
+            GAMESTATE->m_pPlayerState[src]->m_PlayerController == PC_HUMAN &&
+            GAMESTATE->m_pPlayerState[src]->m_PlayerOptions.GetCurrent().m_fPlayerAutoPlay == 0) {
+          pc = PC_HUMAN;
+        }
+      }
+      ps->m_PlayerController = pc;
     }
   }
 
@@ -2955,6 +2985,16 @@ bool ScreenGameplay::Input(const InputEventPlus& input) {
           case GameButtonType_Step:
             if (iCol != -1) {
               pi.m_pPlayer->Step(iCol, -1, input.DeviceI.ts, false, bRelease);
+              // CC fork: NotITG extra players set to this side with
+              // SetInputPlayer take the same step (judged on their own,
+              // never counted toward this side's score).
+              for (PlayerInfo& xi : m_vPlayerInfo) {
+                if (xi.m_bIsDummy && xi.m_pPlayer != nullptr &&
+                    xi.m_pPlayer->CCTakesInputFrom(input.pn) &&
+                    xi.GetPlayerState()->m_PlayerController == PC_HUMAN) {
+                  xi.m_pPlayer->Step(iCol, -1, input.DeviceI.ts, false, bRelease);
+                }
+              }
             }
             return true;
         }

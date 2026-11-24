@@ -110,6 +110,8 @@ class ActorFrame : public Actor {
   // CC fork: NotITG ActorFrame:SetFarDist -- far clip of this frame's fov
   // perspective (3D scenes far into the screen get cut off at 1000).
   void CCSetFarDist(float d) { m_fCCFarDist = d; }
+  float CCGetVanishX() const { return m_fVanishX; }
+  float CCGetVanishY() const { return m_fVanishY; }
   void SetVanishPoint(float fX, float fY) {
     m_fVanishX = fX;
     m_fVanishY = fY;

@@ -2505,6 +2505,45 @@ class LunaActor : public Luna<Actor> {
     p->m_CC2.scale = RageVector3(FArg(1), FArg(1), FArg(1));
     COMMON_RETURN_SELF;
   }
+  // CC fork: rest of NotITG's secondary-transform and command API
+  static int xy2(T* p, lua_State* L) {
+    p->m_CC2.pos.x = FArg(1); p->m_CC2.pos.y = FArg(2); COMMON_RETURN_SELF;
+  }
+  static int xyz2(T* p, lua_State* L) {
+    p->m_CC2.pos = RageVector3(FArg(1), FArg(2), FArg(3)); COMMON_RETURN_SELF;
+  }
+  static int zoomxyz2(T* p, lua_State* L) {
+    p->m_CC2.scale = RageVector3(FArg(1), FArg(2), FArg(3)); COMMON_RETURN_SELF;
+  }
+  static int rotationxyz2(T* p, lua_State* L) {
+    p->m_CC2.rot = RageVector3(FArg(1), FArg(2), FArg(3)); COMMON_RETURN_SELF;
+  }
+  static int GetZoomX2(T* p, lua_State* L) { lua_pushnumber(L, p->m_CC2.scale.x); return 1; }
+  static int GetZoomY2(T* p, lua_State* L) { lua_pushnumber(L, p->m_CC2.scale.y); return 1; }
+  static int GetZoomZ2(T* p, lua_State* L) { lua_pushnumber(L, p->m_CC2.scale.z); return 1; }
+  static int GetRotationX2(T* p, lua_State* L) { lua_pushnumber(L, p->m_CC2.rot.x); return 1; }
+  static int GetRotationY2(T* p, lua_State* L) { lua_pushnumber(L, p->m_CC2.rot.y); return 1; }
+  static int GetRotationZ2(T* p, lua_State* L) { lua_pushnumber(L, p->m_CC2.rot.z); return 1; }
+  static int GetSkewX2(T* p, lua_State* L) { lua_pushnumber(L, p->m_CC2.skewx); return 1; }
+  static int GetSkewY2(T* p, lua_State* L) { lua_pushnumber(L, p->m_CC2.skewy); return 1; }
+  static int removecommand(T* p, lua_State* L) {
+    std::string s = SArg(1);
+    if (EndsWith(s, "Command")) s = s.substr(0, s.size() - 7);
+    p->CCRemoveCommand(s);
+    COMMON_RETURN_SELF;
+  }
+  static int hascommand(T* p, lua_State* L) {
+    std::string s = SArg(1);
+    if (EndsWith(s, "Command")) s = s.substr(0, s.size() - 7);
+    lua_pushboolean(L, p->HasCommand(s));
+    return 1;
+  }
+  static int SetName(T* p, lua_State* L) { p->SetName(SArg(1)); COMMON_RETURN_SELF; }
+  // OpenITG effectdelay: a pause after each effect cycle (ITGmania: hold at zero)
+  static int effectdelay(T* p, lua_State* L) {
+    p->CCSetEffectDelay(FArg(1));
+    COMMON_RETURN_SELF;
+  }
   static int GetX2(T* p, lua_State* L) { lua_pushnumber(L, p->m_CC2.pos.x); return 1; }
   static int GetY2(T* p, lua_State* L) { lua_pushnumber(L, p->m_CC2.pos.y); return 1; }
   static int GetZ2(T* p, lua_State* L) { lua_pushnumber(L, p->m_CC2.pos.z); return 1; }
@@ -2759,6 +2798,22 @@ class LunaActor : public Luna<Actor> {
     ADD_METHOD(GetX2);
     ADD_METHOD(GetY2);
     ADD_METHOD(GetZ2);
+    ADD_METHOD(xy2);
+    ADD_METHOD(xyz2);
+    ADD_METHOD(zoomxyz2);
+    ADD_METHOD(rotationxyz2);
+    ADD_METHOD(GetZoomX2);
+    ADD_METHOD(GetZoomY2);
+    ADD_METHOD(GetZoomZ2);
+    ADD_METHOD(GetRotationX2);
+    ADD_METHOD(GetRotationY2);
+    ADD_METHOD(GetRotationZ2);
+    ADD_METHOD(GetSkewX2);
+    ADD_METHOD(GetSkewY2);
+    ADD_METHOD(removecommand);
+    ADD_METHOD(hascommand);
+    ADD_METHOD(SetName);
+    ADD_METHOD(effectdelay);
     ADD_METHOD(SetShader);
     ADD_METHOD(ClearShader);
     ADD_METHOD(AddWrapperState);

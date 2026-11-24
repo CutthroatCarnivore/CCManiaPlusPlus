@@ -18,10 +18,21 @@
 #include "PlayerOptions.h"
 #include "LuaManager.h"
 
+// CC fork: NotITG (Lua 5.0) for-loop closure rule, see extern lua lparser.c.
+#if defined(_MSC_VER)
+extern int cc_lua50_forloops;
+#else
+extern "C" int cc_lua50_forloops;
+#endif
+static void CCSetLua50Loops(bool b) {
+  cc_lua50_forloops = (b && std::getenv("CC_LUA51_LOOPS") == nullptr) ? 1 : 0;
+}
+
 Foreground::~Foreground() { Unload(); }
 
 void Foreground::Unload() {
   g_bCCNotITGColumns = false;  // CC fork: back to ITGmania column numbering
+  CCSetLua50Loops(false);
   for (unsigned i = 0; i < m_BGAnimations.size(); ++i) {
     delete m_BGAnimations[i].m_bga;
   }
@@ -38,6 +49,7 @@ void Foreground::LoadFromSong(const Song* pSong) {
 
   m_pSong = pSong;
   g_bCCNotITGColumns = false;  // CC fork: set below if this is a NotITG modfile
+  CCSetLua50Loops(false);
   for (const BackgroundChange& change : pSong->GetForegroundChanges()) {
     std::string sBGName = change.m_def.m_sFile1,
                 sLuaFile = pSong->GetSongDir() + sBGName + "/default.lua",
@@ -48,6 +60,7 @@ void Foreground::LoadFromSong(const Song* pSong) {
     // default.lua port written for another engine (NotITG parity first).
     if (CC_LEGACY_ACTORS && DoesFileExist(sXmlFile)) {
       g_bCCNotITGColumns = true;
+      CCSetLua50Loops(true);
       bga.m_bga = ActorUtil::MakeActor(sXmlFile, this);
     } else if (DoesFileExist(sLuaFile)) {
       bga.m_bga = ActorUtil::MakeActor(sLuaFile, this);
@@ -55,6 +68,7 @@ void Foreground::LoadFromSong(const Song* pSong) {
       if (EndsWith(sBGName, ".xml") ||
           DoesFileExist(pSong->GetSongDir() + sBGName + "/default.xml")) {
         g_bCCNotITGColumns = true;
+        CCSetLua50Loops(true);
       }
       bga.m_bga = ActorUtil::MakeActor(pSong->GetSongDir() + sBGName, this);
     }

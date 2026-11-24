@@ -60,6 +60,11 @@ class PlayerState {
   // to fit in the space available. -Kyz
   float m_NotefieldZoom;
 
+  // CC fork: shaders a NotITG mod script put on this player's notes with
+  // Player:SetArrowShader / SetHoldShader / SetReceptorShader /
+  // SetArrowPathShader (CCNOTESHADER_*). Cleared when a song loads.
+  class CCShader* m_pCCNoteShader[4] = {nullptr, nullptr, nullptr, nullptr};
+
   // Music statistics:
   SongPosition m_Position;
 

@@ -25,9 +25,20 @@ do
 		local src = info and info.source or ""
 		return src:find("/Songs/", 1, true) ~= nil
 	end
-	local function getn(t) return sizes[t] or #t end
+	-- Lua 5.0 / LUA_COMPAT_GETN: a numeric field `n` is the size and is kept
+	-- up to date by insert/remove (the Mirin template's reset{} appends to an
+	-- ease and then walks it up to e.n -- without this, reset did nothing).
+	local function getn(t)
+		if type(t) ~= "table" then return #t end
+		local n = rawget(t, "n")
+		if type(n) == "number" then return n end
+		return sizes[t] or #t
+	end
+	local function setn(t, n)
+		if type(rawget(t, "n")) == "number" then rawset(t, "n", n) else sizes[t] = n end
+	end
 	table.getn = getn
-	table.setn = function(t, n) sizes[t] = n end
+	table.setn = setn
 	table.insert = function(t, a, b)
 		if not from_modfile() and sizes[t] == nil then
 			if b == nil then return tinsert(t, a) end
@@ -40,7 +51,7 @@ do
 			for i = n, a, -1 do t[i + 1] = t[i] end
 			t[a] = b
 		end
-		sizes[t] = n + 1
+		setn(t, n + 1)
 	end
 	table.remove = function(t, pos)
 		if not from_modfile() and sizes[t] == nil then
@@ -53,7 +64,7 @@ do
 		local v = t[pos]
 		for i = pos, n - 1 do t[i] = t[i + 1] end
 		t[n] = nil
-		sizes[t] = n - 1
+		setn(t, n - 1)
 		return v
 	end
 end
@@ -158,7 +169,84 @@ end
 -- NotITG Song:GetSpellCards(): the song's spell cards as a list of tables.
 -- CC doesn't show spell cards, so a song has none (Unkai iterates this list).
 if Song then
-	Song.GetSpellCards = function(self) return {} end
+	-- NotITG spell cards: modfiles name sections of the chart (title, timing,
+	-- difficulty, color). CC keeps them per song so GetSpellCards returns
+	-- what the modfile set; the CC theme doesn't draw a spell card banner.
+	CC_SPELLCARDS = CC_SPELLCARDS or {}
+	local function cards(song)
+		local key = song and song.GetSongDir and song:GetSongDir() or "?"
+		CC_SPELLCARDS[key] = CC_SPELLCARDS[key] or {}
+		return CC_SPELLCARDS[key]
+	end
+	local function card(song, i)
+		local c = cards(song)
+		i = (tonumber(i) or 0) + 1
+		c[i] = c[i] or { name = "", timing = { 0, 0 }, difficulty = 0, color = { 1, 1, 1, 1 } }
+		return c[i]
+	end
+	Song.SetNumSpellCards = function(self, n)
+		local c = cards(self)
+		for i = #c, (tonumber(n) or 0) + 1, -1 do c[i] = nil end
+		return self
+	end
+	Song.SetSpellCardTiming = function(self, i, b1, b2) card(self, i).timing = { b1 or 0, b2 or 0 } return self end
+	Song.SetSpellCardName = function(self, i, s) card(self, i).name = tostring(s or "") return self end
+	Song.SetSpellCardDifficulty = function(self, i, d) card(self, i).difficulty = tonumber(d) or 0 return self end
+	Song.SetSpellCardColor = function(self, i, r, g, b, a) card(self, i).color = { r or 1, g or 1, b or 1, a or 1 } return self end
+	Song.GetNumSpellCards = function(self) return #cards(self) end
+	Song.GetSpellCardName = function(self, i) return card(self, i).name end
+	Song.GetSpellCardTiming = function(self, i) local t = card(self, i).timing return t[1], t[2] end
+	Song.GetSpellCardDifficulty = function(self, i) return card(self, i).difficulty end
+	Song.GetSpellCardColor = function(self, i) return unpack(card(self, i).color) end
+	Song.GetSpellCards = function(self)
+		local out = {}
+		for i, c in ipairs(cards(self)) do
+			-- NotITG's field names (Unkai's Spellcard module reads these)
+			out[i] = { StartBeat = c.timing[1], EndBeat = c.timing[2], Difficulty = c.difficulty,
+				Name = c.name, Color = { c.color[1], c.color[2], c.color[3], c.color[4] } }
+		end
+		return out
+	end
+	-- NotITG editor labels: nothing to show outside the editor.
+	Song.AddLabel = function(self) return self end
+	Song.ClearLabels = function(self) return self end
+end
+if GameState then
+	GameState.IsWine = function() return false end  -- CCMania++ runs natively
+end
+-- NotITG ScreenGameplay:SetLife(pn0, life) (Thin Ice empties the life bar)
+if ScreenGameplay and not ScreenGameplay.SetLife then
+	ScreenGameplay.SetLife = function(self, pn, v)
+		local p = self:GetChild("PlayerP" .. ((tonumber(pn) or 0) + 1))
+		if p and p.SetLife then pcall(function() p:SetLife(tonumber(v) or 0) end) end
+		return self
+	end
+end
+if ScreenManager then
+	ScreenManager.HideOverlayMessage = function(self)
+		if self.SystemMessage then pcall(function() self:HideSystemMessage() end) end
+		return self
+	end
+end
+if Actor then
+	-- NotITG/OpenITG lowercase alias; sound actors' Play/Stop
+	Actor.texturefiltering = function(self, b)
+		if self.SetTextureFiltering then self:SetTextureFiltering(b ~= false and b ~= 0) end
+		return self
+	end
+	-- Only forward to a class's own play/stop (ActorSound). The generic
+	-- lower-case aliases below forward back here, so calling them would
+	-- recurse forever on actors that have neither (stack overflow, Thin Ice).
+	Actor.Play = function(self)
+		local f = self.play
+		if f and f ~= rawget(Actor, "start") and f ~= rawget(Actor, "play") then f(self) end
+		return self
+	end
+	Actor.Stop = function(self)
+		local f = self.stop
+		if f and f ~= rawget(Actor, "stop") then f(self) end
+		return self
+	end
 end
 -- NotITG Actor:GetXMLDir(): folder of the .xml file the modfile is loading from
 -- (Unkai's module loader builds its require() paths from it).
@@ -295,6 +383,7 @@ local function CCDropHooksAfterGameplay()
 	if top ~= nil and not cc_top_was_gameplay then
 		-- back on a theme screen: modfile code is gone, refresh the clean snapshot
 		if leaving_gameplay then CCRestoreGlobals() end
+		CC_SPELLCARDS = {}  -- spell cards belong to one play of a song
 		CCSnapshotGlobals()
 	end
 	if leaving_gameplay and not cc_top_was_gameplay and #CCFrameHooks > 0 then
@@ -585,7 +674,10 @@ end
 -- NotITG actor/stat methods that modfiles call (found by running every song)
 if Actor then
 	if rawget(Actor, "GetHidden") == nil then
-		Actor.GetHidden = function(self) return self:GetVisible() and 0 or 1 end
+		-- NotITG returns a boolean here: LimitAft (Chegg) keeps it and tests
+		-- `not aft._hide`, so a number 0 froze every limited AFT (black panels
+		-- in Lily Clock, My Leather My Fur My Nails, One Last Time).
+		Actor.GetHidden = function(self) return not self:GetVisible() end
 	end
 	if rawget(Actor, "SetFPS") == nil then
 		Actor.SetFPS = function(self, fps)
@@ -595,13 +687,29 @@ if Actor then
 		end
 	end
 end
+-- OpenITG/NotITG RageSound:pan(-1..1); ITGmania pans through the "Pan" property
+-- (only on sounds loaded with SupportPan, which legacy XML sound layers get).
+if RageSound and rawget(RageSound, "pan") == nil then
+	RageSound.pan = function(self, v)
+		pcall(function() self:SetProperty("Pan", tonumber(v) or 0) end)
+		return self
+	end
+end
 -- NotITG Sound layers take lower-case `stop;start` commands.
 if Actor then
 	if rawget(Actor, "stop") == nil then
-		Actor.stop = function(self) if self.Stop then self:Stop() end return self end
+		Actor.stop = function(self)
+			local f = self.Stop
+			if f and f ~= rawget(Actor, "Stop") then f(self) end
+			return self
+		end
 	end
 	if rawget(Actor, "start") == nil then
-		Actor.start = function(self) if self.Play then self:Play() end return self end
+		Actor.start = function(self)
+			local f = self.play
+			if f and f ~= rawget(Actor, "start") and f ~= rawget(Actor, "play") then f(self) end
+			return self
+		end
 	end
 end
 -- NotITG always has a top screen; hand song scripts a harmless null object while ours is switching.
@@ -675,7 +783,20 @@ end
 -- OpenITG/NotITG preference names that ITGmania split into ReadOnly/Writable.
 if PrefsManager and PrefsManager.GetPreference then
 	local cc_getpref = PrefsManager.GetPreference
+	-- OpenITG/NotITG judge window names (Unkai reads them).
+	local cc_judgewin = {
+		JudgeWindowSecondsMarvelous = "TimingWindowSecondsW1",
+		JudgeWindowSecondsPerfect = "TimingWindowSecondsW2",
+		JudgeWindowSecondsGreat = "TimingWindowSecondsW3",
+		JudgeWindowSecondsGood = "TimingWindowSecondsW4",
+		JudgeWindowSecondsBoo = "TimingWindowSecondsW5",
+		JudgeWindowSecondsHold = "TimingWindowSecondsHold",
+		JudgeWindowSecondsMine = "TimingWindowSecondsMine",
+		JudgeWindowSecondsRoll = "TimingWindowSecondsRoll",
+		JudgeWindowSecondsAttack = "TimingWindowSecondsAttack",
+	}
 	PrefsManager.GetPreference = function(self, name)
+		if cc_judgewin[name] then name = cc_judgewin[name] end
 		if name == "AdditionalSongFolders" or name == "AdditionalFolders" then
 			local ro = cc_getpref(self, name .. "ReadOnly") or ""
 			local w = cc_getpref(self, name .. "Writable") or ""

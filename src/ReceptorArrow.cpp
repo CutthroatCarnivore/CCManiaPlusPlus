@@ -12,6 +12,7 @@
 #include "PlayerState.h"
 #include "RageUtil.h"
 #include "Style.h"
+#include "CCNotITGMods.h"  // CC fork: hidenotepress
 
 ReceptorArrow::ReceptorArrow() {
   m_bIsPressed = false;
@@ -57,6 +58,13 @@ void ReceptorArrow::Update(float fDeltaTime) {
 }
 
 void ReceptorArrow::DrawPrimitives() {
+  {  // CC fork: NotITG hidenotepress -- receptors don't react to presses
+    const PlayerOptions& po = m_pPlayerState->m_PlayerOptions.GetCurrent();
+    const int c = (m_iColNo >= 0 && m_iColNo < CC_MAX_COLS) ? m_iColNo : 0;
+    if (po.m_fCC[CCMOD_HIDENOTEPRESS] + po.m_fCCCol[CCMOD_HIDENOTEPRESS][c] >= 0.5f) {
+      m_bIsPressed = false;
+    }
+  }
   if (m_bWasPressed && !m_bIsPressed) {
     m_pReceptor->PlayCommand("Lift");
   } else if (!m_bWasPressed && m_bIsPressed) {

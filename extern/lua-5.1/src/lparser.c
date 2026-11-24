@@ -27,6 +27,24 @@
 
 
 
+/*
+** CC fork: NotITG runs Lua 5.0. There, a closure made inside a `for' loop
+** shares the loop variable with every other iteration: after a numeric loop
+** they all see its last value, after a generic loop they see nil. Lua 5.1
+** gives each iteration a fresh variable. NotITG modfiles depend on the 5.0
+** behavior (Kokoro no kioku, Conformance 38). Foreground.cpp sets
+** cc_lua50_forloops while a NotITG modfile is loaded, and only chunks from a
+** song folder get the 5.0 rule; theme and SM5 song Lua keep Lua 5.1 rules.
+*/
+int cc_lua50_forloops = 0;
+
+static int cc_lua50_chunk (const char *name) {
+  return cc_lua50_forloops && name != NULL &&
+         (strstr(name, "/Songs/") != NULL ||
+          strstr(name, "/AdditionalSongs/") != NULL);
+}
+
+
 #define hasmultret(k)		((k) == VCALL || (k) == VVARARG)
 
 #define getlocvar(fs, i)	((fs)->f->locvars[(fs)->actvar[i]])
@@ -43,6 +61,7 @@ typedef struct BlockCnt {
   lu_byte nactvar;  /* # active locals outside the breakable structure */
   lu_byte upval;  /* true if some variable in the block is an upvalue */
   lu_byte isbreakable;  /* true if `block' is a loop */
+  lu_byte ccclose;  /* CC fork: close shared loop variables after the loop */
 } BlockCnt;
 
 
@@ -287,6 +306,7 @@ static void enterblock (FuncState *fs, BlockCnt *bl, lu_byte isbreakable) {
   bl->isbreakable = isbreakable;
   bl->nactvar = fs->nactvar;
   bl->upval = 0;
+  bl->ccclose = 0;
   bl->previous = fs->bl;
   fs->bl = bl;
   lua_assert(fs->freereg == fs->nactvar);
@@ -385,6 +405,7 @@ Proto *luaY_parser (lua_State *L, ZIO *z, Mbuffer *buff, const char *name) {
   struct FuncState funcstate;
   lexstate.buff = buff;
   luaX_setinput(L, &lexstate, z, luaS_new(L, name));
+  lexstate.cc50 = cc_lua50_chunk(name);  /* CC fork */
   open_func(&lexstate, &funcstate);
   funcstate.f->is_vararg = VARARG_ISVARARG;  /* main func. is always vararg */
   luaX_next(&lexstate);  /* read first token */
@@ -1140,6 +1161,13 @@ static void forbody (LexState *ls, int base, int line, int nvars, int isnum) {
   adjustlocalvars(ls, nvars);
   luaK_reserveregs(fs, nvars);
   block(ls);
+  if (ls->cc50 && bl.upval) {
+    /* CC fork (Lua 5.0 rule): keep the loop variables open across
+       iterations so every closure shares them; forstat closes them once
+       the loop ends, on both the normal exit and `break'. */
+    bl.upval = 0;
+    bl.previous->ccclose = 1;
+  }
   leaveblock(fs);  /* end of scope for declared variables */
   luaK_patchtohere(fs, prep);
   endfor = (isnum) ? luaK_codeAsBx(fs, OP_FORLOOP, base, NO_JUMP) :
@@ -1209,6 +1237,8 @@ static void forstat (LexState *ls, int line) {
   }
   check_match(ls, TK_END, TK_FOR, line);
   leaveblock(fs);  /* loop scope (`break' jumps to this point) */
+  if (bl.ccclose)  /* CC fork: see forbody */
+    luaK_codeABC(fs, OP_CLOSE, bl.nactvar, 0, 0);
 }
 
 

@@ -693,6 +693,25 @@ class Actor : public MessageSubscriber {
   void AddCommand(
       const std::string& sCmdName, apActorCommands apac, bool warn = true);
   bool HasCommand(const std::string& sCmdName) const;
+  // CC fork: NotITG Actor:removecommand / OpenITG effectdelay
+  void CCRemoveCommand(const std::string& sCmdName) {
+    // A command often removes itself while it is running (Mirin's
+    // removecommand('Init') / ('Update')): keep the removed command alive
+    // until the actor goes away instead of freeing it mid-call.
+    auto it = m_mapNameToCommands.find(sCmdName);
+    if (it == m_mapNameToCommands.end()) return;
+    m_vCCRemovedCommands.push_back(it->second);
+    m_mapNameToCommands.erase(it);
+  }
+  std::vector<apActorCommands> m_vCCRemovedCommands;
+  void CCSetEffectDelay(float fDelay) {
+    if (fDelay < 0) fDelay = 0;
+    m_effect_hold_at_zero = fDelay;
+    if (m_effect_ramp_to_half + m_effect_hold_at_half + m_effect_ramp_to_full +
+            m_effect_hold_at_full + m_effect_hold_at_zero > 0) {
+      RecalcEffectPeriod();
+    }
+  }
   const apActorCommands* GetCommand(const std::string& sCommandName) const;
   void PlayCommand(const std::string& sCommandName) {
     HandleMessage(Message(sCommandName));

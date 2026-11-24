@@ -1,4 +1,5 @@
 #include "Player.h"
+#include "CCShader.h"
 #include "CCSplines.h"
 
 #include <algorithm>
@@ -878,6 +879,43 @@ void Player::Load() {
   RageUtil::SafeDelete(m_pIterUnjudgedMineRows);
   m_pIterUnjudgedMineRows = new NoteData::all_tracks_iterator(
       m_NoteData.GetTapNoteRangeAllTracks(iNoteRow, MAX_NOTE_ROW));
+}
+
+// CC fork: NotITG Player:SetNoteDataFromLua. Swaps this player's notes and
+// rebuilds everything that points into them (notefield, judging iterators).
+void Player::CCReplaceNoteData(const NoteData& nd) {
+  NoteData copy = nd;
+  copy.SetNumTracks(m_NoteData.GetNumTracks());
+  m_NoteData = copy;
+  int iNoteRow = BeatToNoteRow(GAMESTATE->m_Position.m_fSongBeat);
+  if (iNoteRow < 0) iNoteRow = 0;
+  if (m_pNoteField) {
+    m_pNoteField->Load(&m_NoteData, DRAW_DISTANCE_AFTER_TARGET_PIXELS,
+                       DRAW_DISTANCE_BEFORE_TARGET_PIXELS);
+  }
+  RageUtil::SafeDelete(m_pIterNeedsTapJudging);
+  m_pIterNeedsTapJudging = new NoteData::all_tracks_iterator(
+      m_NoteData.GetTapNoteRangeAllTracks(iNoteRow, MAX_NOTE_ROW));
+  RageUtil::SafeDelete(m_pIterNeedsHoldJudging);
+  m_pIterNeedsHoldJudging = new NoteData::all_tracks_iterator(
+      m_NoteData.GetTapNoteRangeAllTracks(iNoteRow, MAX_NOTE_ROW));
+  RageUtil::SafeDelete(m_pIterUncrossedRows);
+  m_pIterUncrossedRows = new NoteData::all_tracks_iterator(
+      m_NoteData.GetTapNoteRangeAllTracks(iNoteRow, MAX_NOTE_ROW));
+  RageUtil::SafeDelete(m_pIterUnjudgedRows);
+  m_pIterUnjudgedRows = new NoteData::all_tracks_iterator(
+      m_NoteData.GetTapNoteRangeAllTracks(iNoteRow, MAX_NOTE_ROW));
+  RageUtil::SafeDelete(m_pIterUnjudgedMineRows);
+  m_pIterUnjudgedMineRows = new NoteData::all_tracks_iterator(
+      m_NoteData.GetTapNoteRangeAllTracks(iNoteRow, MAX_NOTE_ROW));
+}
+
+// The human players' notes are their score: a modfile may only swap the notes
+// of NotITG's extra players and of a side nobody is playing.
+bool Player::CCCanReplaceNotes() const {
+  if (m_bCCExtraPlayer) return true;
+  const PlayerNumber pn = m_pPlayerState->m_PlayerNumber;
+  return !GAMESTATE->IsHumanPlayer(pn);
 }
 
 void Player::SendComboMessages(
@@ -1962,7 +2000,13 @@ void Player::DrawHoldJudgments() {
     return;
   }
 
+  const PlayerOptions& cc_po = m_pPlayerState->m_PlayerOptions.GetCurrent();
   for (int c = 0; c < m_NoteData.GetNumTracks(); c++) {
+    // CC fork: NotITG noholdjudge hides the OK / NG hold judgments
+    const int cc = c < CC_MAX_COLS ? c : 0;
+    if (cc_po.m_fCC[CCMOD_NOHOLDJUDGE] + cc_po.m_fCCCol[CCMOD_NOHOLDJUDGE][cc] >= 0.5f) {
+      continue;
+    }
     if (m_vpHoldJudgment[c]) {
       m_vpHoldJudgment[c]->Draw();
     }
@@ -3982,6 +4026,7 @@ class LunaPlayer : public Luna<Player> {
   }
   static int SetInputPlayer(T* p, lua_State* L) {
     p->m_iCCInputPlayer = static_cast<int>(luaL_optnumber(L, 1, 0));
+    p->m_bCCInputSet = p->m_bCCExtraPlayer;  // P1/P2 keep their own input
     COMMON_RETURN_SELF;
   }
   static int GetInputPlayer(T* p, lua_State* L) {
@@ -3997,8 +4042,209 @@ class LunaPlayer : public Luna<Player> {
     }
     COMMON_RETURN_SELF;
   }
+  // CC fork: NotITG Player:SetNoteDataFromLua({{beat, column, type[, length]}, ...})
+  // (the same entries GetNoteData returns: type 1 tap, 2 hold, 4 roll,
+  // "M" mine, "L" lift, "F" fake; hold length in beats as [4] or length=).
+  static int SetNoteDataFromLua(T* p, lua_State* L) {
+    luaL_checktype(L, 1, LUA_TTABLE);
+    if (!p->CCCanReplaceNotes()) {
+      static bool warned = false;
+      if (!warned) {
+        warned = true;
+        LOG->Trace("CC-NOTITG: SetNoteDataFromLua on a human player is ignored (keeps the real chart)");
+      }
+      COMMON_RETURN_SELF;
+    }
+    NoteData nd;
+    nd.SetNumTracks(p->GetNoteData().GetNumTracks());
+    const int n = static_cast<int>(lua_objlen(L, 1));
+    for (int i = 1; i <= n; ++i) {
+      lua_rawgeti(L, 1, i);
+      if (lua_istable(L, -1)) {
+        lua_rawgeti(L, -1, 1);
+        const float beat = static_cast<float>(lua_tonumber(L, -1));
+        lua_pop(L, 1);
+        lua_rawgeti(L, -1, 2);
+        const int col = static_cast<int>(lua_tonumber(L, -1));
+        lua_pop(L, 1);
+        lua_rawgeti(L, -1, 3);
+        int tnum = 1;
+        std::string tstr;
+        if (lua_type(L, -1) == LUA_TSTRING) tstr = lua_tostring(L, -1);
+        else if (lua_isnumber(L, -1)) tnum = static_cast<int>(lua_tonumber(L, -1));
+        lua_pop(L, 1);
+        float len = 0;
+        lua_getfield(L, -1, "length");
+        if (lua_isnumber(L, -1)) len = static_cast<float>(lua_tonumber(L, -1));
+        lua_pop(L, 1);
+        if (len <= 0) {
+          lua_rawgeti(L, -1, 4);
+          if (lua_isnumber(L, -1)) len = static_cast<float>(lua_tonumber(L, -1));
+          lua_pop(L, 1);
+        }
+        if (col >= 0 && col < nd.GetNumTracks() && beat >= 0) {
+          const int row = BeatToNoteRow(beat);
+          if (tstr == "M" || tstr == "m") nd.SetTapNote(col, row, TAP_ORIGINAL_MINE);
+          else if (tstr == "L" || tstr == "l") nd.SetTapNote(col, row, TAP_ORIGINAL_LIFT);
+          else if (tstr == "F" || tstr == "f") nd.SetTapNote(col, row, TAP_ORIGINAL_FAKE);
+          else if ((tnum == 2 || tnum == 4) && len > 0) {
+            nd.AddHoldNote(col, row, row + std::max(1, BeatToNoteRow(len)),
+                           tnum == 4 ? TAP_ORIGINAL_ROLL_HEAD : TAP_ORIGINAL_HOLD_HEAD);
+          } else nd.SetTapNote(col, row, TAP_ORIGINAL_TAP);
+        }
+      }
+      lua_pop(L, 1);
+    }
+    p->CCReplaceNoteData(nd);
+    COMMON_RETURN_SELF;
+  }
+  // NotITG Player:SetNoteData(n): switches between stored charts; CC keeps the
+  // loaded chart (POLYBIUS / Never Gonna restore it right after anyway).
+  static int SetNoteData(T* p, lua_State* L) { COMMON_RETURN_SELF; }
+  static int SetNoteTypeMults(T* p, lua_State* L) {
+    std::vector<std::pair<float, float>> v;
+    if (lua_istable(L, 1)) {
+      const int n = static_cast<int>(lua_objlen(L, 1));
+      for (int i = 1; i <= n; ++i) {
+        lua_rawgeti(L, 1, i);
+        if (lua_istable(L, -1)) {
+          lua_rawgeti(L, -1, 1);
+          const float b = static_cast<float>(lua_tonumber(L, -1));
+          lua_rawgeti(L, -2, 2);
+          const float m = lua_isnumber(L, -1) ? static_cast<float>(lua_tonumber(L, -1)) : 1.0f;
+          lua_pop(L, 2);
+          v.emplace_back(b, m);
+        }
+        lua_pop(L, 1);
+      }
+    }
+    CCSetNoteTypeMults(CCSplineSlot(p->GetPlayerState()), v);
+    COMMON_RETURN_SELF;
+  }
+  static int ClearNoteTypeMults(T* p, lua_State* L) {
+    CCSetNoteTypeMults(CCSplineSlot(p->GetPlayerState()), {});
+    COMMON_RETURN_SELF;
+  }
+  static int SetArrowPathBlendMode(T* p, lua_State* L) {
+    std::string s = lua_isstring(L, 1) ? SArg(1) : "normal";
+    MakeLower(s);
+    CCSetArrowPathAdd(CCSplineSlot(p->GetPlayerState()), s == "add" || s == "blendmode_add");
+    COMMON_RETURN_SELF;
+  }
+  static int SetCombo(T* p, lua_State* L) {
+    if (p->CCGetStageStats() && !p->m_bCCExtraPlayer) {
+      p->CCGetStageStats()->m_iCurCombo = std::max(0, IArg(1));
+    }
+    COMMON_RETURN_SELF;
+  }
+  static int GetCombo(T* p, lua_State* L) {
+    lua_pushnumber(L, p->CCGetStageStats() ? p->CCGetStageStats()->m_iCurCombo : 0);
+    return 1;
+  }
+  static int SetMissCombo(T* p, lua_State* L) {
+    if (p->CCGetStageStats() && !p->m_bCCExtraPlayer) {
+      p->CCGetStageStats()->m_iCurMissCombo = std::max(0, IArg(1));
+    }
+    COMMON_RETURN_SELF;
+  }
+  static int GetMissCombo(T* p, lua_State* L) {
+    lua_pushnumber(L, p->CCGetStageStats() ? p->CCGetStageStats()->m_iCurMissCombo : 0);
+    return 1;
+  }
+  static int SetMineSound(T* p, lua_State* L) {
+    std::string s = SArg(1);
+    if (!s.empty() && s[0] != '/') s = "/" + s;
+    if (DoesFileExist(s)) p->CCSetMineSound(s);
+    COMMON_RETURN_SELF;
+  }
+  // NotITG Player:SetPlayerController(pc): only extra players take it (0
+  // human = follow the side set with SetInputPlayer, 1 autoplay, 2 cpu); a
+  // human side keeps its controller (a mod chart never turns on autoplay).
+  static int SetPlayerController(T* p, lua_State* L) {
+    if (p->m_bCCExtraPlayer && p->GetPlayerState()) {
+      // NotITG passes a number (0 human, 1 autoplay, 2 cpu). Charts often
+      // pass PREFSMAN:GetPreference("AutoPlay"), which in ITGmania is the
+      // enum name ("PlayerController_Human"), so accept that too (Unkai).
+      int pc = 1;
+      if (lua_type(L, 1) == LUA_TNUMBER) {
+        pc = static_cast<int>(lua_tonumber(L, 1));
+      } else if (lua_type(L, 1) == LUA_TSTRING) {
+        std::string s = lua_tostring(L, 1);
+        for (char& ch : s) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        if (s.find("human") != std::string::npos) pc = 0;
+        else if (s.find("cpu") != std::string::npos) pc = 2;
+        else if (s.find("auto") != std::string::npos) pc = 1;
+        else pc = StringToInt(s);
+      }
+      p->m_iCCController = pc;
+      if (p->m_iCCController > 0) {
+        p->GetPlayerState()->m_PlayerController = PC_AUTOPLAY;
+      }
+    }
+    COMMON_RETURN_SELF;
+  }
+
+  // CC fork: NotITG Player:SetArrowShader / SetHoldShader /
+  // SetReceptorShader / SetArrowPathShader(shader) -- shader is an actor's
+  // GetShader(); nil clears. Get* return the shader or nil.
+  static int CCSetNoteShader(T* p, lua_State* L, int kind) {
+    PlayerState* ps = p->GetPlayerState();
+    if (ps != nullptr) {
+      ps->m_pCCNoteShader[kind] =
+          lua_isnoneornil(L, 1) ? nullptr : Luna<CCShader>::check(L, 1);
+    }
+    COMMON_RETURN_SELF;
+  }
+  static int CCGetNoteShader(T* p, lua_State* L, int kind) {
+    PlayerState* ps = p->GetPlayerState();
+    if (ps != nullptr && ps->m_pCCNoteShader[kind] != nullptr) {
+      ps->m_pCCNoteShader[kind]->PushSelf(L);
+    } else {
+      lua_pushnil(L);
+    }
+    return 1;
+  }
+#define CC_NOTE_SHADER_METHODS(Name, kind)                                    \
+  static int Set##Name##Shader(T* p, lua_State* L) {                          \
+    return CCSetNoteShader(p, L, kind);                                       \
+  }                                                                           \
+  static int Get##Name##Shader(T* p, lua_State* L) {                          \
+    return CCGetNoteShader(p, L, kind);                                       \
+  }                                                                           \
+  static int Clear##Name##Shader(T* p, lua_State* L) {                        \
+    if (p->GetPlayerState()) p->GetPlayerState()->m_pCCNoteShader[kind] = nullptr; \
+    COMMON_RETURN_SELF;                                                       \
+  }
+  CC_NOTE_SHADER_METHODS(Arrow, 0)
+  CC_NOTE_SHADER_METHODS(Hold, 1)
+  CC_NOTE_SHADER_METHODS(Receptor, 2)
+  CC_NOTE_SHADER_METHODS(ArrowPath, 3)
+#undef CC_NOTE_SHADER_METHODS
 
   LunaPlayer() {
+    ADD_METHOD(SetArrowShader);
+    ADD_METHOD(GetArrowShader);
+    ADD_METHOD(ClearArrowShader);
+    ADD_METHOD(SetHoldShader);
+    ADD_METHOD(GetHoldShader);
+    ADD_METHOD(ClearHoldShader);
+    ADD_METHOD(SetReceptorShader);
+    ADD_METHOD(GetReceptorShader);
+    ADD_METHOD(ClearReceptorShader);
+    ADD_METHOD(SetArrowPathShader);
+    ADD_METHOD(GetArrowPathShader);
+    ADD_METHOD(ClearArrowPathShader);
+    ADD_METHOD(SetNoteDataFromLua);
+    ADD_METHOD(SetNoteData);
+    ADD_METHOD(SetNoteTypeMults);
+    ADD_METHOD(ClearNoteTypeMults);
+    ADD_METHOD(SetArrowPathBlendMode);
+    ADD_METHOD(SetCombo);
+    ADD_METHOD(GetCombo);
+    ADD_METHOD(SetMissCombo);
+    ADD_METHOD(GetMissCombo);
+    ADD_METHOD(SetMineSound);
+    ADD_METHOD(SetPlayerController);
     ADD_METHOD(SetLife);
     ADD_METHOD(ChangeLife);
     ADD_METHOD(SetActorWithJudgmentPosition);

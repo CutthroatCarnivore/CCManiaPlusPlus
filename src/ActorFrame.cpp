@@ -629,6 +629,14 @@ class LunaActorFrame : public Luna<ActorFrame> {
     p->SetVanishPoint(FArg(1), FArg(2));
     COMMON_RETURN_SELF;
   }
+  static int SetVanishX(T* p, lua_State* L) {
+    p->SetVanishPoint(FArg(1), p->CCGetVanishY());
+    COMMON_RETURN_SELF;
+  }
+  static int SetVanishY(T* p, lua_State* L) {
+    p->SetVanishPoint(p->CCGetVanishX(), FArg(1));
+    COMMON_RETURN_SELF;
+  }
   static int SetFarDist(T* p, lua_State* L) {
     p->CCSetFarDist(std::clamp(FArg(1), 1.0f, 2000000.0f));
     COMMON_RETURN_SELF;
@@ -774,6 +782,8 @@ class LunaActorFrame : public Luna<ActorFrame> {
     ADD_METHOD(vanishpoint);
     ADD_METHOD(SetVanishPoint);  // CC fork
     ADD_METHOD(SetFarDist);      // CC fork
+    ADD_METHOD(SetVanishX);      // CC fork
+    ADD_METHOD(SetVanishY);      // CC fork
     ADD_METHOD(GetChild);
     ADD_METHOD(GetChildren);
     ADD_METHOD(GetNumChildren);

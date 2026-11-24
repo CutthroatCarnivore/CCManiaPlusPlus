@@ -23,6 +23,9 @@
 #include "ThemeManager.h"
 #include "XmlFile.h"
 #include "XmlFileUtil.h"
+#include "NoteSkinManager.h"  // CC fork: noteskin parts from modfiles
+#include "PlayerState.h"
+#include "Sprite.h"
 #include "arch/Dialog/Dialog.h"
 #include "global.h"
 
@@ -306,6 +309,92 @@ static void CCSetLegacyVar(const XNode& node, Actor* pActor) {
   LUA->Release(L);
 }
 
+// CC fork: "../NoteSkins/Dance/<skin>/<Button> <Element>[.ext]" -> the noteskin
+// actor for that button. Only parts every dance noteskin has are mapped, so a
+// skin is never asked for something it can't load. nullptr = not handled.
+static Actor* CCLoadNoteSkinPart(const std::string& sFile, Actor* pParent) {
+  std::string s = sFile;
+  for (char& ch : s) {
+    if (ch == '\\') ch = '/';
+  }
+  const size_t slash = s.find_last_of('/');
+  if (slash == std::string::npos || slash == 0) return nullptr;
+  std::string sName = s.substr(slash + 1);
+  const std::string sDir = s.substr(0, slash);
+  const size_t slash2 = sDir.find_last_of('/');
+  const std::string sSkin = slash2 == std::string::npos ? sDir : sDir.substr(slash2 + 1);
+  const size_t dot = sName.find_last_of('.');
+  if (dot != std::string::npos && dot + 5 >= sName.size()) sName = sName.substr(0, dot);
+  const size_t sp = sName.find(' ');
+  if (sp == std::string::npos) return nullptr;
+  const std::string sButton = sName.substr(0, sp);
+  std::string sElem = sName.substr(sp + 1);
+  std::string sElemLower = sElem;
+  MakeLower(sElemLower);
+  static const char* const kButtons[] = {"Left", "Down", "Up", "Right", "UpLeft", "UpRight", "Center"};
+  bool bButtonOk = false;
+  for (const char* b : kButtons) {
+    if (CompareNoCase(sButton, b) == 0) bButtonOk = true;
+  }
+  if (!bButtonOk) return nullptr;
+  std::string sTarget;
+  if (sElemLower.find("receptor") == 0) sTarget = "Receptor";
+  else if (sElemLower == "tap note") sTarget = "Tap Note";
+  else if (sElemLower.find("tap explosion") == 0 || sElemLower == "explosion") sTarget = "Explosion";
+  else if (sElemLower.find("hold head") == 0) sTarget = "Hold Head Inactive";
+  else if (sElemLower.find("tap mine") == 0) sTarget = "Tap Mine";
+  else return nullptr;
+  // Receptors: NotITG's "<Button> Receptor Go" is the flat 64px receptor art
+  // turned by a base rotation, and modfiles zoom and tint it into scenery
+  // (IFLWOGB's giant colored arrows). A themed noteskin receptor (glows,
+  // particles) turns into a mess at that size, so use the flat receptor art
+  // ITGmania ships with its cel noteskin, turned the same way.
+  if (sTarget == "Receptor") {
+    static const char* const kFlat = "/NoteSkins/dance/cel/_Down Receptor Go 4x1 (doubleres).png";
+    if (DoesFileExist(kFlat)) {
+      std::map<std::string, CreateActorFn>::iterator sp = g_pmapRegistrees->find("Sprite");
+      if (sp != g_pmapRegistrees->end()) {
+        Actor* pSpr = sp->second();
+        pSpr->SetParent(pParent);
+        static_cast<Sprite*>(pSpr)->Load(RageTextureID(kFlat));
+        pSpr->StopAnimating();
+        pSpr->SetState(0);
+        float rz = 0;
+        if (CompareNoCase(sButton, "Left") == 0) rz = 90;
+        else if (CompareNoCase(sButton, "Up") == 0) rz = 180;
+        else if (CompareNoCase(sButton, "Right") == 0) rz = -90;
+        else if (CompareNoCase(sButton, "UpLeft") == 0) rz = 45;
+        else if (CompareNoCase(sButton, "UpRight") == 0) rz = -45;
+        pSpr->SetBaseRotationZ(rz);
+        LOG->Trace("CC-NOTITG: noteskin part \"%s\" -> flat receptor art (rot %.0f)",
+                   sFile.c_str(), rz);
+        return pSpr;
+      }
+    }
+  }
+  if (NOTESKIN == nullptr) return nullptr;
+  std::string sUseSkin = sSkin;
+  if (!NOTESKIN->DoesNoteSkinExist(sUseSkin)) {
+    if (PlayerState* ps = GAMESTATE->m_pPlayerState[PLAYER_1]) {
+      sUseSkin = ps->m_PlayerOptions.GetCurrent().m_sNoteSkin;
+    }
+    if (sUseSkin.empty() || !NOTESKIN->DoesNoteSkinExist(sUseSkin)) {
+      sUseSkin = NOTESKIN->GetDefaultNoteSkinName();
+    }
+  }
+  const std::string sPrev = NOTESKIN->GetCurrentNoteSkin();
+  NOTESKIN->SetCurrentNoteSkin(sUseSkin);
+  std::string sButtonFixed = sButton;
+  sButtonFixed[0] = static_cast<char>(toupper(sButtonFixed[0]));
+  Actor* pActor = NOTESKIN->LoadActor(sButtonFixed, sTarget, pParent);
+  NOTESKIN->SetCurrentNoteSkin(sPrev);
+  if (pActor != nullptr) {
+    LOG->Trace("CC-NOTITG: noteskin part \"%s\" -> %s %s (%s)", sFile.c_str(),
+               sButtonFixed.c_str(), sTarget.c_str(), sUseSkin.c_str());
+  }
+  return pActor;
+}
+
 Actor* ActorUtil::LoadFromNode(const XNode* _pNode, Actor* pParentActor) {
   ASSERT(_pNode != nullptr);
 
@@ -378,6 +467,21 @@ Actor* ActorUtil::LoadFromNode(const XNode* _pNode, Actor* pParentActor) {
       // so the modfile's later calls on it keep working.
       std::string sLower = sFile;
       MakeLower(sLower);
+      // CC fork: modfiles (It Feels Like We Only Go Backwards) load noteskin
+      // parts straight from NoteSkins/<game>/<skin>/<Button> <Element> using
+      // OpenITG file names ("Left Receptor Go"). ITGmania noteskins (the CC
+      // ones included) name those parts differently, so route them through the
+      // noteskin system: any installed skin then gives the real receptor/note.
+      if (sLower.find("noteskins/") != std::string::npos) {
+        if (Actor* pSkin = CCLoadNoteSkinPart(sFile, pParentActor)) {
+          if (pParentActor) {
+            pSkin->SetParent(pParentActor);
+          }
+          CCSetLegacyVar(node, pSkin);
+          pSkin->LoadFromNode(&node);
+          return pSkin;
+        }
+      }
       Actor* pBlank = nullptr;
       if (sLower.find("white") != std::string::npos ||
           sLower.find("black") != std::string::npos ||
@@ -416,6 +520,13 @@ Actor* ActorUtil::LoadFromNode(const XNode* _pNode, Actor* pParentActor) {
   }
 
   if (bLegacy) {
+    // CC fork: StepMania's plain "Actor" class starts hidden; OpenITG/NotITG's
+    // doesn't. A NotITG modfile's code-only <Layer InitCommand=...> must stay
+    // visible, or its luaeffect never runs (Mirin 5's whole update loop lives
+    // on one -- Lily Clock). It draws nothing either way.
+    if (sClass == "Actor") {
+      pRet->SetVisible(true);
+    }
     CCSetLegacyVar(node, pRet);
   }
   pRet->LoadFromNode(&node);
@@ -572,6 +683,19 @@ Actor* ActorUtil::MakeActor(const std::string& sPath_, Actor* pParentActor) {
       xml.AppendAttr("Materials", sPath);
       xml.AppendAttr("Bones", sPath);
 
+      return ActorUtil::LoadFromNode(&xml, pParentActor);
+    }
+    case FT_Sound: {
+      // CC fork: OpenITG/NotITG XML layers can name a sound file
+      // (<Layer Type="ActorSound" File="...ogg">, Unkai's panned mine
+      // sounds). Make it a real ActorSound so self:get() works.
+      if (!CC_LEGACY_ACTORS) {
+        return new Actor;
+      }
+      XNode xml;
+      xml.AppendAttr("Class", "Sound");  // ActorSound registers as "Sound"
+      xml.AppendAttr("File", sPath);
+      xml.AppendAttr("SupportPan", "1");
       return ActorUtil::LoadFromNode(&xml, pParentActor);
     }
     default: {

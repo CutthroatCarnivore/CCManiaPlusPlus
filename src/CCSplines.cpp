@@ -23,12 +23,18 @@ constexpr int kPlayers = 2 + CC_NOTITG_EXTRA_PLAYERS;
 constexpr int kCols = 16;
 constexpr int kPoints = 40;
 
+// How NotITG reads spline points (CC Conformance 34 "Spline gaps", side by
+// side against NotITG 4.9.1): points are used in index order, 0 up to the
+// highest index set; a point that was never set counts as offset 0, value 0
+// (so a lone point 1 at 300 ramps up from 0 at the receptors instead of
+// moving them); reading stops at the first point whose offset is lower than
+// the one before it. One usable point gives a constant.
 struct Spline {
-  bool set[kPoints] = {};
+  int n = 0;  // highest index set since the last reset, plus one
   float off[kPoints] = {};
   float val[kPoints] = {};
   bool dirty = false;
-  std::vector<std::pair<float, float>> sorted;  // (offset, value)
+  std::vector<std::pair<float, float>> sorted;  // usable (offset, value) points
 };
 
 Spline g_splines[kPlayers][NUM_CCSP][kCols];
@@ -36,20 +42,17 @@ int g_count[kPlayers] = {};
 
 void Rebuild(Spline& s) {
   s.sorted.clear();
-  for (int i = 0; i < kPoints; ++i) {
-    if (s.set[i]) s.sorted.emplace_back(s.off[i], s.val[i]);
+  for (int i = 0; i < s.n; ++i) {
+    if (i > 0 && s.off[i] < s.off[i - 1]) break;
+    s.sorted.emplace_back(s.off[i], s.val[i]);
   }
-  std::stable_sort(s.sorted.begin(), s.sorted.end(),
-                   [](const std::pair<float, float>& a,
-                      const std::pair<float, float>& b) { return a.first < b.first; });
   s.dirty = false;
 }
 
 void Recount(int pn) {
   int n = 0;
   for (int t = 0; t < NUM_CCSP; ++t)
-    for (int c = 0; c < kCols; ++c)
-      for (int i = 0; i < kPoints; ++i) n += g_splines[pn][t][c].set[i] ? 1 : 0;
+    for (int c = 0; c < kCols; ++c) n += g_splines[pn][t][c].n;
   g_count[pn] = n;
 }
 }  // namespace
@@ -62,8 +65,10 @@ void CCSplineSetPoint(int pn, int type, int index, int column, float value,
   if (c0 >= kCols) return;
   for (int c = c0; c <= std::min(c1, kCols - 1); ++c) {
     Spline& s = g_splines[pn][type][c];
-    if (!s.set[index]) ++g_count[pn];
-    s.set[index] = true;
+    if (index + 1 > s.n) {
+      g_count[pn] += index + 1 - s.n;
+      s.n = index + 1;
+    }
     s.off[index] = offset;
     s.val[index] = value;
     s.dirty = true;
@@ -75,7 +80,8 @@ void CCSplineReset(int pn, int type, int column) {
   const int c0 = column < 0 ? 0 : column, c1 = column < 0 ? kCols - 1 : column;
   for (int c = c0; c <= std::min(c1, kCols - 1); ++c) {
     Spline& s = g_splines[pn][type][c];
-    for (int i = 0; i < kPoints; ++i) s.set[i] = false;
+    for (int i = 0; i < kPoints; ++i) s.off[i] = s.val[i] = 0.0f;
+    s.n = 0;
     s.sorted.clear();
     s.dirty = false;
   }
@@ -197,4 +203,36 @@ void CCGradientResetAll() {
       for (int c = 0; c < kCols; ++c) g_grad[p][t][c].num = 0;
     g_grad_any[p] = false;
   }
+}
+
+namespace {
+std::vector<std::pair<float, float>> g_ntmults[2 + CC_NOTITG_EXTRA_PLAYERS];
+bool g_pathadd[2 + CC_NOTITG_EXTRA_PLAYERS] = {};
+}  // namespace
+
+void CCSetNoteTypeMults(int pn, const std::vector<std::pair<float, float>>& v) {
+  if (pn < 0 || pn >= kPlayers) return;
+  g_ntmults[pn] = v;
+  std::stable_sort(g_ntmults[pn].begin(), g_ntmults[pn].end(),
+                   [](const std::pair<float, float>& a,
+                      const std::pair<float, float>& b) { return a.first < b.first; });
+}
+
+float CCNoteTypeBeat(int pn, float beat) {
+  if (pn < 0 || pn >= kPlayers || g_ntmults[pn].empty()) return beat;
+  const std::pair<float, float>* seg = nullptr;
+  for (const auto& m : g_ntmults[pn]) {
+    if (m.first <= beat + 0.0001f) seg = &m; else break;
+  }
+  if (seg == nullptr || seg->second == 1.0f) return beat;
+  return seg->first + (beat - seg->first) * seg->second;
+}
+
+void CCSetArrowPathAdd(int pn, bool add) {
+  if (pn >= 0 && pn < kPlayers) g_pathadd[pn] = add;
+}
+bool CCArrowPathAdd(int pn) { return pn >= 0 && pn < kPlayers && g_pathadd[pn]; }
+
+void CCNoteTypeResetAll() {
+  for (int p = 0; p < kPlayers; ++p) { g_ntmults[p].clear(); g_pathadd[p] = false; }
 }

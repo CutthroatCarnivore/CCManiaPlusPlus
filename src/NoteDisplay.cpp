@@ -1,5 +1,7 @@
 #include "NoteDisplay.h"
+#include "CCShader.h"
 #include "CCSplines.h"
+CCShader* CCNoteShader(const PlayerState* ps, int kind);  // below
 
 #include <algorithm>
 #include <cmath>
@@ -716,7 +718,8 @@ void NoteDisplay::SetActiveFrame(
 
 Actor* NoteDisplay::GetTapActor(
     NoteColorActor& nca, NotePart part, float fNoteBeat) {
-  const std::string& sColor = NoteTypeToString(BeatToNoteType(fNoteBeat));
+  const std::string& sColor = NoteTypeToString(BeatToNoteType(
+      CCNoteTypeBeat(CCSplineSlot(m_pPlayerState), fNoteBeat)));  // CC fork
   Actor* pActorOut = nca.Get(sColor);
 
   SetActiveFrame(
@@ -736,7 +739,8 @@ Actor* NoteDisplay::GetHoldActor(
 Sprite* NoteDisplay::GetHoldSprite(
     NoteColorSprite ncs[NUM_HoldType][NUM_ActiveType], NotePart part,
     float fNoteBeat, bool bIsRoll, bool bIsBeingHeld) {
-  const std::string& sColor = NoteTypeToString(BeatToNoteType(fNoteBeat));
+  const std::string& sColor = NoteTypeToString(BeatToNoteType(
+      CCNoteTypeBeat(CCSplineSlot(m_pPlayerState), fNoteBeat)));  // CC fork
   Sprite* pSpriteOut =
       ncs[bIsRoll ? roll : hold][bIsBeingHeld ? active : inactive].Get(sColor);
 
@@ -1438,10 +1442,18 @@ void NoteDisplay::DrawHold(
     Actor* pActor = GetHoldActor(
         m_HoldHead, NotePart_HoldHead, NoteRowToBeat(iRow),
         tn.subType == TapNoteSubType_Roll, bIsBeingHeld);
+    // CC fork: in NotITG a hold's head takes the arrow shader, its body the
+    // hold shader (CC Conformance 36).
+    CCShader* cc_hs = CCNoteShader(field_args.player_state, 1);
+    CCShader* cc_as = CCNoteShader(field_args.player_state, 0);
+    if (cc_hs) cc_hs->End();
+    if (cc_as) cc_as->Begin(nullptr);
     DrawActor(
         tn, pActor, NotePart_HoldHead, field_args, column_args,
         bFlipHeadAndTail ? fEndYOffset : fStartYOffset, fBeat, bIsAddition,
         fPercentFadeToFail, fColorScale, bIsBeingHeld);
+    if (cc_as) cc_as->End();
+    if (cc_hs) cc_hs->Begin(nullptr);
   }
 }
 
@@ -1622,7 +1634,8 @@ void NoteDisplay::DrawActor(
     float fScaledBeat = 0.0f;
     switch (cache->m_NoteColorType[part]) {
       case NoteColorType_Denominator:
-        color = float(BeatToNoteType(fBeat));
+        color = float(BeatToNoteType(
+            CCNoteTypeBeat(CCSplineSlot(m_pPlayerState), fBeat)));  // CC fork
         color = std::clamp(
             color, 0.0f, (float)(cache->m_iNoteColorCount[part] - 1));
         break;
@@ -1820,6 +1833,14 @@ void NoteColumnRenderer::UpdateReceptorGhostStuff(Actor* receptor) const {
   receptor->SetInternalGlow(m_column_render_args.glow);
 }
 
+// CC fork: shader a NotITG mod script put on this player's arrows (0), holds
+// (1), receptors (2) or arrow paths (3); nullptr when none is usable.
+CCShader* CCNoteShader(const PlayerState* ps, int kind) {
+  if (ps == nullptr || kind < 0 || kind > 3) return nullptr;
+  CCShader* s = ps->m_pCCNoteShader[kind];
+  return (s != nullptr && s->IsUsable()) ? s : nullptr;
+}
+
 // CC fork: NotITG arrowpath -- a line along the exact path this column's
 // arrows travel (same ArrowEffects math as the notes, so mods bend it too).
 static void CCDrawArrowPath(
@@ -1886,10 +1907,12 @@ static void CCDrawArrowPath(
     q.push_back(r);
   }
   DISPLAY->ClearAllTextures();
-  DISPLAY->SetBlendMode(BLEND_NORMAL);
+  // CC fork: Player:SetArrowPathBlendMode('add') (0 - Schall)
+  DISPLAY->SetBlendMode(CCArrowPathAdd(CCSplineSlot(ps)) ? BLEND_ADD : BLEND_NORMAL);
   DISPLAY->SetZTestMode(ZTEST_OFF);
   DISPLAY->SetCullMode(CULL_NONE);
   DISPLAY->DrawQuadStrip(q.data(), static_cast<int>(q.size()));
+  DISPLAY->SetBlendMode(BLEND_NORMAL);
 }
 
 void NoteColumnRenderer::DrawPrimitives() {
@@ -1904,7 +1927,12 @@ void NoteColumnRenderer::DrawPrimitives() {
   m_field_render_args->first_beat =
       NoteRowToBeat(m_field_render_args->first_row);
   m_field_render_args->last_beat = NoteRowToBeat(m_field_render_args->last_row);
-  CCDrawArrowPath(*m_field_render_args, m_column_render_args, m_column);  // CC fork
+  {  // CC fork: NotITG SetArrowPathShader
+    CCShader* cc_ps = CCNoteShader(m_field_render_args->player_state, 3);
+    if (cc_ps) cc_ps->Begin(nullptr);
+    CCDrawArrowPath(*m_field_render_args, m_column_render_args, m_column);
+    if (cc_ps) cc_ps->End();
+  }
   bool any_upcoming = false;
   // Build lists of holds and taps for each player number, then pass those
   // lists to the displays to draw.
@@ -1976,11 +2004,18 @@ void NoteColumnRenderer::DrawPrimitives() {
     DTS_INNER(pn, tap_set, draw_func, m_displays[pn]); \
   }
 
+  // CC fork: NotITG SetHoldShader / SetArrowShader
+  CCShader* cc_hs = CCNoteShader(m_field_render_args->player_state, 1);
+  if (cc_hs) cc_hs->Begin(nullptr);
   DRAW_TAP_SET(holds, DrawHoldsInRange);
   DTS_INNER(
       PLAYER_INVALID, holds, DrawHoldsInRange, m_displays[PLAYER_INVALID]);
+  if (cc_hs) cc_hs->End();
+  CCShader* cc_as = CCNoteShader(m_field_render_args->player_state, 0);
+  if (cc_as) cc_as->Begin(nullptr);
   DRAW_TAP_SET(taps, DrawTapsInRange);
   DTS_INNER(PLAYER_INVALID, taps, DrawTapsInRange, m_displays[PLAYER_INVALID]);
+  if (cc_as) cc_as->End();
 #undef DTS_INNER
 #undef DRAW_TAP_SET
   m_field_render_args->receptor_row->SetNoteUpcoming(m_column, any_upcoming);

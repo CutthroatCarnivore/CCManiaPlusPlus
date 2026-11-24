@@ -137,9 +137,28 @@ class Player : public ActorFrame {
     m_bCCAwake = false;
     m_bSendJudgmentAndComboMessages = false;
   }
+  PlayerStageStats* CCGetStageStats() { return m_pPlayerStageStats; }
+  void CCReplaceNoteData(const NoteData& nd);
+  bool CCCanReplaceNotes() const;
+  void CCSetMineSound(const std::string& path) {
+    RageSoundLoadParams sp;
+    sp.m_bSupportPan = true;
+    m_soundMine.Load(path, true, &sp);
+  }
   bool m_bCCExtraPlayer = false;
   bool m_bCCAwake = true;
   int m_iCCInputPlayer = 0;
+  // CC fork: NotITG SetInputPlayer(pn) on an extra player: it takes that
+  // side's steps (and its autoplay setting). Until then it plays itself.
+  bool m_bCCInputSet = false;
+  // NotITG SetPlayerController value for an extra player (0 human,
+  // 1 autoplay, 2 cpu); -1 = never set.
+  int m_iCCController = -1;
+  // Should this extra player take steps from side pn right now?
+  bool CCTakesInputFrom(int pn) const {
+    return m_bCCExtraPlayer && m_bCCAwake && m_bCCInputSet &&
+           m_iCCInputPlayer == pn && m_iCCController <= 0;
+  }
 
   // OITG bug:  Actor::SetZoom only sets X and Y.  When mini is applied to
   // the notefield with SetZoom, it does not affect the range of bumpy.

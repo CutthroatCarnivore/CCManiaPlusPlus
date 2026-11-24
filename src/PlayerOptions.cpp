@@ -828,10 +828,25 @@ void PlayerOptions::FromString(const std::string& sMultipleMods) {
   std::string sThrowAway;
   for (std::string& s : vs) {
     if (!FromOneModString(s, sThrowAway)) {
-      LOG->Trace(
-          "Attempted to load a non-existing mod \'%s\' for the Player. "
-          "Ignoring.",
-          s.c_str());
+      // CC fork: an approach speed with no mod after it ("*4 ", a typo in
+      // Ayakashi's mod table) does nothing in NotITG either; don't report it.
+      {
+        std::string t = s;
+        Trim(t);
+        if (t.size() > 1 && t[0] == '*' &&
+            t.find_first_not_of("0123456789.", 1) == std::string::npos) {
+          continue;
+        }
+      }
+      // CC fork: mod charts reapply their mod strings every frame (Unkai:
+      // ~2,400 lines a second), so report each ignored mod only once.
+      static std::set<std::string> s_cc_ignored;
+      if (s_cc_ignored.size() < 1024 && s_cc_ignored.insert(s).second) {
+        LOG->Trace(
+            "Attempted to load a non-existing mod \'%s\' for the Player. "
+            "Ignoring.",
+            s.c_str());
+      }
     }
   }
 }
@@ -939,6 +954,14 @@ bool PlayerOptions::FromOneModString(
       else if (base == "roll") base = "cc_colroll";
       else if (base == "boost") base = "cc_colboost";
       else if (base == "brake") base = "cc_colbrake";
+      // drunk0, bumpyx1, zigzagperiod2 ... (Teufel, WILD RUSH):
+      // added to the global value for that column only.
+      else if (base == "drunk" || base == "bumpyx" ||
+               base == "bumpyxoffset" || base == "bumpyxperiod" ||
+               base == "zigzag" || base == "zigzagoffset" ||
+               base == "zigzagperiod" || base == "zigzagz" ||
+               base == "zigzagzoffset" || base == "zigzagzperiod")
+        base = "cc_col" + base;
       cc = CCModFromName(base);
       if (cc >= 0) {
         int col = StringToInt(sBit.substr(d + 1)) - CCColBase();

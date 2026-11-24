@@ -1,6 +1,9 @@
 #ifndef CC_SPLINES_H
 #define CC_SPLINES_H
 
+#include <utility>
+#include <vector>
+
 // CC fork: NotITG per-column splines (Player:SetXSpline etc.).
 // A spline is up to 40 points (offset, value) per column. "offset" is how far
 // the arrow is from the receptors in percent of an arrow (100 = 64 px);
@@ -43,5 +46,16 @@ void CCGradientSetColor(int pn, int type, int point, int column, float r,
 bool CCGradientEval(int pn, int type, int column, float y_offset_px,
                     float out_rgba[4]);
 void CCGradientResetAll();
+
+// CC fork: NotITG Player:SetNoteTypeMults({{beat, mult}, ...}): from `beat`
+// on, a note's quantization color is picked as if its distance from `beat`
+// were multiplied by `mult` (Schall, Clock Atelier, ILIAS, Foolish Hero).
+void CCSetNoteTypeMults(int pn, const std::vector<std::pair<float, float>>& v);
+float CCNoteTypeBeat(int pn, float beat);
+// CC fork: Player:SetArrowPathBlendMode('add' / 'normal').
+void CCSetArrowPathAdd(int pn, bool add);
+bool CCArrowPathAdd(int pn);
+// Clears note type mults and path blend modes (new song).
+void CCNoteTypeResetAll();
 
 #endif

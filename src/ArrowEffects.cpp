@@ -855,12 +855,17 @@ float ArrowEffects::GetXPos(
         pPlayerState->m_NotefieldZoom, data, fYOffset, true);
   }
 
-  if (fEffects[PlayerOptions::EFFECT_BUMPY_X] != 0) {
+  // CC fork: NotITG per-column drunkN / bumpyxN / zigzagN (+offset/period)
+  // add to the global value for this column.
+  const int cc_xc = (iColNum >= 0 && iColNum < CC_MAX_COLS) ? iColNum : 0;
+#define CC_XCOL(e, m) \
+  (fEffects[PlayerOptions::e] + curr_options->m_fCCCol[CCMOD_##m][cc_xc])
+  if (CC_XCOL(EFFECT_BUMPY_X, COLBUMPYX) != 0) {
     fPixelOffsetFromCenter +=
-        fEffects[PlayerOptions::EFFECT_BUMPY_X] * 40 *
+        CC_XCOL(EFFECT_BUMPY_X, COLBUMPYX) * 40 *
         std::sin(CalculateBumpyAngle(
-            fYOffset, fEffects[PlayerOptions::EFFECT_BUMPY_X_OFFSET],
-            fEffects[PlayerOptions::EFFECT_BUMPY_X_PERIOD]));
+            fYOffset, CC_XCOL(EFFECT_BUMPY_X_OFFSET, COLBUMPYXOFFSET),
+            CC_XCOL(EFFECT_BUMPY_X_PERIOD, COLBUMPYXPERIOD)));
   }
 
   if (fEffects[PlayerOptions::EFFECT_TAN_BUMPY_X] != 0) {
@@ -873,9 +878,9 @@ float ArrowEffects::GetXPos(
             curr_options->m_bCosecant);
   }
 
-  if (fEffects[PlayerOptions::EFFECT_DRUNK] != 0) {
+  if (CC_XCOL(EFFECT_DRUNK, COLDRUNK) != 0) {
     fPixelOffsetFromCenter +=
-        fEffects[PlayerOptions::EFFECT_DRUNK] *
+        CC_XCOL(EFFECT_DRUNK, COLDRUNK) *
         (std::cos(CalculateDrunkAngle(
              fEffects[PlayerOptions::EFFECT_DRUNK_SPEED], iColNum,
              fEffects[PlayerOptions::EFFECT_DRUNK_OFFSET],
@@ -927,16 +932,17 @@ float ArrowEffects::GetXPos(
     fPixelOffsetFromCenter += fEffects[PlayerOptions::EFFECT_BEAT] * fShift;
   }
 
-  if (fEffects[PlayerOptions::EFFECT_ZIGZAG] != 0) {
+  if (CC_XCOL(EFFECT_ZIGZAG, COLZIGZAG) != 0) {
     float fResult = RageTriangle(
-        (PI * (1 / (fEffects[PlayerOptions::EFFECT_ZIGZAG_PERIOD] + 1)) *
+        (PI * (1 / (CC_XCOL(EFFECT_ZIGZAG_PERIOD, COLZIGZAGPERIOD) + 1)) *
          ((fYOffset +
-           (100.0f * (fEffects[PlayerOptions::EFFECT_ZIGZAG_OFFSET]))) /
+           (100.0f * (CC_XCOL(EFFECT_ZIGZAG_OFFSET, COLZIGZAGOFFSET)))) /
           ARROW_SIZE)));
 
     fPixelOffsetFromCenter +=
-        (fEffects[PlayerOptions::EFFECT_ZIGZAG] * ARROW_SIZE / 2) * fResult;
+        (CC_XCOL(EFFECT_ZIGZAG, COLZIGZAG) * ARROW_SIZE / 2) * fResult;
   }
+#undef CC_XCOL
 
   if (fEffects[PlayerOptions::EFFECT_SAWTOOTH] != 0) {
     fPixelOffsetFromCenter +=
@@ -1446,15 +1452,20 @@ float ArrowEffects::GetZPos(
                  curr_options->m_bCosecant);
   }
 
-  if (fEffects[PlayerOptions::EFFECT_ZIGZAG_Z] != 0) {
-    float fResult = RageTriangle(
-        (PI * (1 / (fEffects[PlayerOptions::EFFECT_ZIGZAG_Z_PERIOD] + 1)) *
-         ((fYOffset +
-           (100.0f * (fEffects[PlayerOptions::EFFECT_ZIGZAG_Z_OFFSET]))) /
-          ARROW_SIZE)));
+  {  // CC fork: per-column zigzagzN (+offset/period) add to the global value
+    const int cc_zc = (iCol >= 0 && iCol < CC_MAX_COLS) ? iCol : 0;
+#define CC_ZCOL(e, m) \
+  (fEffects[PlayerOptions::e] + curr_options->m_fCCCol[CCMOD_##m][cc_zc])
+    if (CC_ZCOL(EFFECT_ZIGZAG_Z, COLZIGZAGZ) != 0) {
+      float fResult = RageTriangle(
+          (PI * (1 / (CC_ZCOL(EFFECT_ZIGZAG_Z_PERIOD, COLZIGZAGZPERIOD) + 1)) *
+           ((fYOffset +
+             (100.0f * (CC_ZCOL(EFFECT_ZIGZAG_Z_OFFSET, COLZIGZAGZOFFSET)))) /
+            ARROW_SIZE)));
 
-    fZPos +=
-        (fEffects[PlayerOptions::EFFECT_ZIGZAG_Z] * ARROW_SIZE / 2) * fResult;
+      fZPos += (CC_ZCOL(EFFECT_ZIGZAG_Z, COLZIGZAGZ) * ARROW_SIZE / 2) * fResult;
+    }
+#undef CC_ZCOL
   }
 
   if (fEffects[PlayerOptions::EFFECT_SAWTOOTH_Z] != 0) {
@@ -1658,15 +1669,19 @@ RageVector3 ArrowEffects::CCPosOffset(
   r.x += CCV(MOVEX) * ARROW_SIZE;
   r.y += CCV(MOVEY) * ARROW_SIZE;
   r.z += CCV(MOVEZ) * ARROW_SIZE;
-  // spiral x/y/z: corkscrew around the lane, approximation
-  {
-    const float sp = 1.0f / ARROW_SIZE;
+  // spiral x/y/z, measured in NotITG (conformance 40/41/44, fit to 0.4 px):
+  // offset = spiral * yoffset * cos(yoffset * (1 + period) + offset), with
+  // yoffset in pixels and the angle in radians, so the swing grows the
+  // farther a note is from its receptor (a widening spiral). 100% spiralx
+  // at period 0 turns once every ~6 px, which NotITG's arrow path shows as
+  // a screen-wide zigzag. Nothing happens behind the receptor (yoffset <= 0).
+  if (fYOffset > 0) {
     if ((v = CCV(SPIRALX)) != 0)
-      r.x += v * ARROW_SIZE * std::sin(fYOffset * sp * 2.0f / (1.0f + CCV(SPIRALXPERIOD)) + CCV(SPIRALXOFFSET));
+      r.x += v * fYOffset * std::cos(fYOffset * (1.0f + CCV(SPIRALXPERIOD)) + CCV(SPIRALXOFFSET));
     if ((v = CCV(SPIRALY)) != 0)
-      r.y += v * ARROW_SIZE * std::sin(fYOffset * sp * 2.0f / (1.0f + CCV(SPIRALYPERIOD)) + CCV(SPIRALYOFFSET));
+      r.y += v * fYOffset * std::cos(fYOffset * (1.0f + CCV(SPIRALYPERIOD)) + CCV(SPIRALYOFFSET));
     if ((v = CCV(SPIRALZ)) != 0)
-      r.z += v * ARROW_SIZE * std::sin(fYOffset * sp * 2.0f / (1.0f + CCV(SPIRALZPERIOD)) + CCV(SPIRALZOFFSET));
+      r.z += v * fYOffset * std::cos(fYOffset * (1.0f + CCV(SPIRALZPERIOD)) + CCV(SPIRALZOFFSET));
   }
   if ((v = CCV(CUBICXOFFSET)) != 0) r.x += v * yb * yb * yb * 0.0f;
   {  // CC fork: NotITG splines (values in percent of an arrow)

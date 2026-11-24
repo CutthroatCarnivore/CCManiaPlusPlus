@@ -911,6 +911,8 @@ void NoteField::DrawPrimitives() {
 
   // Draw Receptors
   {
+    // CC fork: Player:SetReceptorShader is stored but not drawn with: side by
+    // side (CC Conformance 36), NotITG 4.9.1 draws the receptors unchanged.
     cur->m_ReceptorArrowRow.Draw();
   }
 

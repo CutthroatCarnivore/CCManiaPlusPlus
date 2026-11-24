@@ -69,6 +69,16 @@
   X(COLROLL, "cc_colroll") \
   X(COLBOOST, "cc_colboost") \
   X(COLBRAKE, "cc_colbrake") \
+  X(COLDRUNK, "cc_coldrunk") \
+  X(COLBUMPYX, "cc_colbumpyx") \
+  X(COLBUMPYXOFFSET, "cc_colbumpyxoffset") \
+  X(COLBUMPYXPERIOD, "cc_colbumpyxperiod") \
+  X(COLZIGZAG, "cc_colzigzag") \
+  X(COLZIGZAGOFFSET, "cc_colzigzagoffset") \
+  X(COLZIGZAGPERIOD, "cc_colzigzagperiod") \
+  X(COLZIGZAGZ, "cc_colzigzagz") \
+  X(COLZIGZAGZOFFSET, "cc_colzigzagzoffset") \
+  X(COLZIGZAGZPERIOD, "cc_colzigzagzperiod") \
   X(ORIENT, "orient") \
   X(ORIENTOFFSET, "orientoffset") \
   X(CONFUSIONZOFFSET, "confusionzoffset") \
@@ -129,7 +139,14 @@
   X(UNBOUNDEDREVERSE, "unboundedreverse") \
   X(WAVEOFFSET, "waveoffset") \
   X(WIREFRAME, "wireframe") \
-  X(WIREFRAMEGIRTH, "wireframegirth")
+  X(WIREFRAMEGIRTH, "wireframegirth") \
+  X(SPLINEZTYPE, "splineztype") \
+  X(SPLINESIZERESET, "splinesizereset") \
+  X(SPLINESIZETYPE, "splinesizetype") \
+  X(SCALABLE2, "scalable2") \
+  X(NOHOLDJUDGE, "noholdjudge") \
+  X(MANUALNOTEFLASH, "manualnoteflash") \
+  X(HIDENOTEPRESS, "hidenotepress")
 
 enum CCMod {
 #define CCX(e, n) CCMOD_##e,

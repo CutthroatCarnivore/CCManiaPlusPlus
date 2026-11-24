@@ -782,6 +782,16 @@ LuaFunction(GetGradeFromPercent, GetGradeFromPercent(FArg(1))) LuaFunction(
     /** @brief Allow Lua to have access to the PlayerStageStats. */
     class LunaPlayerStageStats : public Luna<PlayerStageStats> {
  public:
+  // CC fork: NotITG minigame modfiles (Thin Ice) set the score themselves.
+  // NotITG chart scores never go to GrooveStats/BoogieStats (theme side).
+  static int SetPossibleDancePoints(T* p, lua_State* L) {
+    p->m_iPossibleDancePoints = std::max(0, IArg(1));
+    COMMON_RETURN_SELF;
+  }
+  static int SetActualDancePoints(T* p, lua_State* L) {
+    p->m_iActualDancePoints = IArg(1);
+    COMMON_RETURN_SELF;
+  }
   DEFINE_METHOD(GetCaloriesBurned, m_fCaloriesBurned)
   DEFINE_METHOD(GetNumControllerSteps, m_iNumControllerSteps)
   DEFINE_METHOD(GetLifeRemainingSeconds, m_fLifeRemainingSeconds)
@@ -953,6 +963,8 @@ LuaFunction(GetGradeFromPercent, GetGradeFromPercent(FArg(1))) LuaFunction(
     ADD_METHOD(GetGrade);
     ADD_METHOD(GetHighScore);
     ADD_METHOD(GetActualDancePoints);
+    ADD_METHOD(SetPossibleDancePoints);  // CC fork
+    ADD_METHOD(SetActualDancePoints);    // CC fork
     ADD_METHOD(GetPossibleDancePoints);
     ADD_METHOD(GetCurrentPossibleDancePoints);
     ADD_METHOD(GetPercentDancePoints);

@@ -1851,9 +1851,12 @@ void Player::PushPlayerMatrix(float x, float skew, float center_y) {
   if (m_pNoteField && m_pNoteField->m_iCCFarDist > far_dist) {
     far_dist = static_cast<float>(m_pNoteField->m_iCCFarDist);
   }
+  extern bool g_bCCPlayfieldPerspective;  // CC fork (RageDisplay.cpp)
+  g_bCCPlayfieldPerspective = true;
   DISPLAY->LoadMenuPerspective(
       45, SCREEN_WIDTH, SCREEN_HEIGHT,
       SCALE(skew, 0.1f, 1.0f, x, SCREEN_CENTER_X), center_y, far_dist);
+  g_bCCPlayfieldPerspective = false;
 }
 
 void Player::PopPlayerMatrix() {

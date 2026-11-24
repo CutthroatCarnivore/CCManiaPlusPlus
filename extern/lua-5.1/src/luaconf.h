@@ -534,7 +534,13 @@ typedef int int32_t;
 #define luai_numsub(a,b)	((a)-(b))
 #define luai_nummul(a,b)	((a)*(b))
 #define luai_numdiv(a,b)	((a)/(b))
-#define luai_nummod(a,b)	((a) - floor((a)/(b))*(b))
+/* CC fork: precise modulo -- fmod plus Lua's sign rule (result takes the
+** divisor's sign), as later Lua versions do. a - floor(a/b)*b loses all
+** precision for huge a, and NotITG mod charts rely on the precise result
+** (Kokoro no kioku's particles use i^19 % 107). Arguments are plain
+** variables at every use site, so evaluating them more than once is safe. */
+#define luai_nummod(a,b)	((fmod((a),(b)) != 0 && \
+	((fmod((a),(b)) < 0) != ((b) < 0))) ? fmod((a),(b)) + (b) : fmod((a),(b)))
 #define luai_numpow(a,b)	(pow(a,b))
 #define luai_numunm(a)		(-(a))
 #define luai_numeq(a,b)		((a)==(b))

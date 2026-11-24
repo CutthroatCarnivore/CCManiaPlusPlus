@@ -496,6 +496,8 @@ void RageDisplay::TextureTranslate(float x, float y) {
 }
 
 extern bool g_bCCNotITGColumns;  // CC fork (PlayerOptions.cpp)
+// CC fork: true while Player sets up its playfield camera (PushPlayerMatrix).
+bool g_bCCPlayfieldPerspective = false;
 
 void RageDisplay::LoadMenuPerspective(
     float fovDegrees, float fWidth, float fHeight, float fVanishPointX,
@@ -510,12 +512,16 @@ void RageDisplay::LoadMenuPerspective(
     rage_clamp(fovDegrees, 0.1f, 179.9f);
     float fovRadians = fovDegrees / 180.f * PI;
     float theta = fovRadians / 2;
-    // CC fork: NotITG defines the fov against a 4:3 screen (height * 4/3),
-    // even on a widescreen -- the camera sits closer, so depth looks
-    // stronger (conformance test 24: z 300 magnifies 1.63x, not 1.41x).
-    // Mod charts' RealFov() helpers rely on this.
-    const float fDistWidth =
-        g_bCCNotITGColumns ? fHeight * 4.0f / 3.0f : fWidth;
+    // CC fork: NotITG's playfield camera is set up against a 4:3 screen
+    // (height * 4/3) even on a widescreen -- the camera sits closer, so
+    // depth looks stronger (conformance test 24: z 300 magnifies 1.63x, not
+    // 1.41x). An ActorFrame's own fov() still uses the real screen width:
+    // mod charts pass it through RealFov(), which widens the fov by exactly
+    // the widescreen ratio to get the 4:3 look back (Kokoro no kioku's
+    // particles fly into the camera if the frame camera is moved closer).
+    const float fDistWidth = (g_bCCNotITGColumns && g_bCCPlayfieldPerspective)
+                                 ? fHeight * 4.0f / 3.0f
+                                 : fWidth;
     float fDistCameraFromImage = fDistWidth / 2 / std::tan(theta);
 
     fVanishPointX = SCALE(fVanishPointX, 0, fWidth, fWidth, 0);

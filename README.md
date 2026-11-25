@@ -6,7 +6,7 @@ CCMania++ is ITGmania 1.3.0 plus a layer that runs NotITG modfiles: Lua mods, sh
 
 ## Download
 
-### [Get the latest release (Mac, Apple Silicon)](https://github.com/notajbrant/CCManiaPlusPlus/releases/latest)
+### [Get the latest release (Mac, Apple Silicon)](https://github.com/CutthroatCarnivore/CCManiaPlusPlus/releases/latest)
 
 Windows and Linux versions are in progress.
 
@@ -29,7 +29,7 @@ Found something off? Report it in the #ccmania++ channel on the Cutthroat Carniv
 
 ## Source code
 
-The code lives on the [`cc-notitg`](https://github.com/notajbrant/CCManiaPlusPlus/tree/cc-notitg) branch. This `main` branch only holds this page.
+The code lives on the [`cc-notitg`](https://github.com/CutthroatCarnivore/CCManiaPlusPlus/tree/cc-notitg) branch. This `main` branch only holds this page.
 
 ## License
 

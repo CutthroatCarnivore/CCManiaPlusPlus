@@ -32,6 +32,13 @@ class ActorFrameTexture : public ActorFrame {
   void EnableAlphaBuffer(bool b) { m_bAlphaBuffer = b; }
   void EnableFloat(bool b) { m_bFloat = b; }
   void EnablePreserveTexture(bool b) { m_bPreserveTexture = b; }
+  // CC fork (Beta 6): a childless, preserved AFT in NotITG mode is a capture of
+  // everything drawn so far this frame. The theme's Cylinder Menu FX uses it to
+  // turn any menu screen into live tiles.
+  void EnableScreenCapture(bool b) {
+    m_bCCNotITG = b;
+    if (b) m_bPreserveTexture = true;
+  }
 
   void Create();
 

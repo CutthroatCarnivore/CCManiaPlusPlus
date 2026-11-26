@@ -151,6 +151,10 @@ class LunaActorFrameTexture : public Luna<ActorFrameTexture> {
     p->EnablePreserveTexture(BArg(1));
     COMMON_RETURN_SELF;
   }
+  static int EnableScreenCapture(T* p, lua_State* L) {
+    p->EnableScreenCapture(BArg(1));
+    COMMON_RETURN_SELF;
+  }
   static int SetTextureName(T* p, lua_State* L) {
     p->SetTextureName(SArg(1));
     COMMON_RETURN_SELF;
@@ -171,6 +175,7 @@ class LunaActorFrameTexture : public Luna<ActorFrameTexture> {
     ADD_METHOD(EnableAlphaBuffer);
     ADD_METHOD(EnableFloat);
     ADD_METHOD(EnablePreserveTexture);
+    ADD_METHOD(EnableScreenCapture);
     ADD_METHOD(SetTextureName);
     ADD_METHOD(GetTexture);
   }

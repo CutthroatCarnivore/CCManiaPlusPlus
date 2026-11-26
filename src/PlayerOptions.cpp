@@ -33,6 +33,7 @@ int CCModFromName(const std::string& sName) {
 #include <cctype>
 #include <cfloat>
 #include <cmath>
+#include <cstdlib>  // CC fork: strtof (CCCleanSavedModifiers)
 #include <cstdio>
 #include <set>
 #include <sstream>
@@ -262,6 +263,27 @@ void PlayerOptions::Approach(const PlayerOptions& other, float fDeltaSeconds) {
     for (int c = 0; c < CC_MAX_COLS; c++) {
       APPROACH(fCCCol[i][c]);
     }
+  }
+  // CC fork (11/26/2026) safety net: a NaN/infinite mod value (a modfile's 0/0, or memory that was
+  // never set) makes every arrow vanish. Treat it as off, in what's drawn and in what it approaches.
+  for (int i = 0; i < NUM_CCMODS; i++) {
+    const float n = CCModNeutral(i);
+    if (!std::isfinite(m_fCC[i])) m_fCC[i] = n;
+    for (int c = 0; c < CC_MAX_COLS; c++) {
+      if (!std::isfinite(m_fCCCol[i][c])) m_fCCCol[i][c] = n;
+    }
+  }
+  for (int i = 0; i < NUM_EFFECTS; i++) {
+    if (!std::isfinite(m_fEffects[i])) m_fEffects[i] = 0;
+  }
+  for (int i = 0; i < 16; i++) {
+    if (!std::isfinite(m_fMovesX[i])) m_fMovesX[i] = 0;
+    if (!std::isfinite(m_fMovesY[i])) m_fMovesY[i] = 0;
+    if (!std::isfinite(m_fMovesZ[i])) m_fMovesZ[i] = 0;
+    if (!std::isfinite(m_fConfusionX[i])) m_fConfusionX[i] = 0;
+    if (!std::isfinite(m_fConfusionY[i])) m_fConfusionY[i] = 0;
+    if (!std::isfinite(m_fConfusionZ[i])) m_fConfusionZ[i] = 0;
+    if (!std::isfinite(m_fTiny[i])) m_fTiny[i] = 0;
   }
   for (int i = 0; i < NUM_APPEARANCES; i++) {
     APPROACH(fAppearances[i]);
@@ -2252,6 +2274,68 @@ bool PlayerOptions::ContainsTransformOrTurn() const {
     }
   }
   return false;
+}
+
+// CC fork (11/26/2026): CCMania++ Beta 5 to 7 wrote never-set NotITG mod memory into profiles' saved
+// default mods (1,600+ entries like "9223372036854775807% rotationx4"), which then loaded on every song
+// and threw the arrows off the screen. Saved default mods only ever hold the options-menu basics
+// (GetSavedPrefsString), so a profile's copy keeps those and loses: any NotITG mod, any per-column mod
+// ("movex3", "tiny1", "x11"...), and any level that isn't a sane number. The profile heals on its next save.
+std::string CCCleanSavedModifiers(const std::string& sMods, int* pDropped) {
+  static const char* const kPerColumnStock[] = {
+      "movex", "movey", "movez", "confusionoffset", "confusionxoffset", "confusionyoffset",
+      "confusionzoffset", "dark", "stealth", "tiny", "bumpy", "reverse", "twirl", "roll", "boost",
+      "brake", "drunk", "bumpyx", "bumpyxoffset", "bumpyxperiod", "zigzag", "zigzagoffset",
+      "zigzagperiod", "zigzagz", "zigzagzoffset", "zigzagzperiod"};
+  std::vector<std::string> parts;
+  split(sMods, ",", parts, true);
+  std::string out;
+  int dropped = 0;
+  for (std::string t : parts) {
+    Trim(t);
+    if (t.empty()) continue;
+    std::vector<std::string> words;
+    split(t, " ", words, true);
+    bool drop = false;
+    // levels ("50%", "*2") must be real, sane numbers
+    for (size_t w = 0; w + 1 < words.size() && !drop; ++w) {
+      const std::string& lv = words[w];
+      if (lv.empty()) continue;
+      const char* p = lv.c_str();
+      if (*p == '*') ++p;
+      char* end = nullptr;
+      const float v = std::strtof(p, &end);
+      if (end == p) continue;  // not a number ("No", "W1/W2"...)
+      if (!std::isfinite(v) || std::fabs(v) > 100000.0f) drop = true;
+    }
+    // a NotITG / per-column mod is always written as "<level> <name>": single words (speed mods like
+    // C400, noteskin names, "Overhead") are never touched by the name checks
+    if (!drop && words.size() >= 2) {
+      std::string name = words.back();
+      std::transform(name.begin(), name.end(), name.begin(),
+                     [](unsigned char c) { return (char)std::tolower(c); });
+      if (CCModFromName(name) >= 0) {
+        drop = true;
+      } else {
+        const size_t d = name.find_last_not_of("0123456789");
+        if (d != std::string::npos && d + 1 < name.size()) {
+          const std::string base = name.substr(0, d + 1);
+          if (CCModFromName(base) >= 0 || CCModFromName("cc_col" + base) >= 0) drop = true;
+          for (const char* b : kPerColumnStock) {
+            if (base == b) drop = true;
+          }
+        }
+      }
+    }
+    if (drop) {
+      ++dropped;
+      continue;
+    }
+    if (!out.empty()) out += ", ";
+    out += t;
+  }
+  if (pDropped) *pDropped = dropped;
+  return out;
 }
 
 std::string PlayerOptions::GetSavedPrefsString() const {

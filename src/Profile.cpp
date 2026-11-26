@@ -37,6 +37,7 @@
 #include "RageFileDriverDeflate.h"
 #include "RageFileManager.h"
 #include "RageLog.h"
+#include "PlayerOptions.h"  // CC fork: CCCleanSavedModifiers
 #include "RageThreads.h"
 #include "RageTimer.h"
 #include "RageUtil.h"
@@ -565,10 +566,12 @@ bool Profile::GetDefaultModifiers(
 
 void Profile::SetDefaultModifiers(
     const Game* pGameType, const std::string& sModifiers) {
-  if (sModifiers == "") {
+  // CC fork (11/26/2026): never save NotITG / per-column / broken mods as a profile's default mods
+  const std::string clean = CCCleanSavedModifiers(sModifiers);
+  if (clean == "") {
     m_sDefaultModifiers.erase(pGameType->m_szName);
   } else {
-    m_sDefaultModifiers[pGameType->m_szName] = sModifiers;
+    m_sDefaultModifiers[pGameType->m_szName] = clean;
   }
 }
 
@@ -1841,7 +1844,16 @@ void Profile::LoadGeneralDataFromNode(const XNode* pNode) {
     const XNode* pDefaultModifiers = pNode->GetChild("DefaultModifiers");
     if (pDefaultModifiers) {
       FOREACH_CONST_Child(pDefaultModifiers, game_type) {
-        game_type->GetTextValue(m_sDefaultModifiers[game_type->GetName()]);
+        std::string& mods = m_sDefaultModifiers[game_type->GetName()];
+        game_type->GetTextValue(mods);
+        // CC fork (11/26/2026): profiles saved by CCMania++ Beta 5-7 can hold 1,600+ broken NotITG mods
+        // here (arrows vanish on every song). Clean them on load; the next save writes the clean copy.
+        int dropped = 0;
+        mods = CCCleanSavedModifiers(mods, &dropped);
+        if (dropped > 0) {
+          LOG->Warn("CC fork: removed %d broken saved mods from this profile's %s default mods",
+                    dropped, game_type->GetName().c_str());
+        }
       }
     }
   }

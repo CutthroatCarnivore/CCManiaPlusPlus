@@ -75,6 +75,9 @@ LuaDeclareType(ModTimerType);
 // per-column mods from 0 (tiny0 = left), ITGmania from 1 (tiny1 = left).
 extern bool g_bCCNotITGColumns;
 inline int CCColBase() { return g_bCCNotITGColumns ? 0 : 1; }
+// CC fork (11/26/2026): a profile's saved default mods with every NotITG mod, every per-column mod and
+// every absurd value taken out (see PlayerOptions.cpp). pDropped (optional) gets how many were removed.
+std::string CCCleanSavedModifiers(const std::string& sMods, int* pDropped = nullptr);
 
 class PlayerOptions {
  public:
@@ -167,6 +170,18 @@ class PlayerOptions {
     ONE(m_SpeedfBumpy);
     ZERO(m_fReverse);
     ONE(m_SpeedfReverse);
+    // CC fork (11/26/2026): the NotITG mod arrays too, same as Init(). Without this, a
+    // PlayerOptions made by the constructor alone (straight from song select into gameplay)
+    // kept leftover memory here: garbage cc_col* mods (9223372036854775807% cc_colzigzag14...)
+    // threw every arrow and receptor off the screen.
+    for (int i = 0; i < NUM_CCMODS; ++i) {
+      m_fCC[i] = CCModNeutral(i);
+      m_SpeedfCC[i] = 1.0f;
+      for (int c = 0; c < CC_MAX_COLS; ++c) {
+        m_fCCCol[i][c] = CCModNeutral(i);
+        m_SpeedfCCCol[i][c] = 1.0f;
+      }
+    }
   };
   void Init();
   void Approach(const PlayerOptions& other, float fDeltaSeconds);

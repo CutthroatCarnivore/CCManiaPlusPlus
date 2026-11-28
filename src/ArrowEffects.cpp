@@ -27,6 +27,12 @@
 #include "Style.h"
 #include "ThemeMetric.h"
 #include "global.h"
+#include "Preference.h"
+
+// CC fork 11/27/2026 (Anthony): arrows stay on screen unless the player opts in. Default off; the theme's
+// "Off-Screen Arrows" option (Simply Love Options) sets it. Get() is a plain member read, cheap for every arrow.
+static Preference<bool> g_bCCAllowOffscreenArrows("CCAllowOffscreenArrows", false);
+bool ArrowEffects::CCAllowOffscreen() { return g_bCCAllowOffscreenArrows.Get(); }
 
 static const char dimension_names[4] = "XYZ";
 
@@ -797,6 +803,19 @@ float ArrowEffects::GetYPos(
   // the arrows look better, but testing needs to be done.
   // todo: make this a noteskin metric instead of a theme metric? -aj
   return QUANTIZE_ARROW_Y ? std::floor(f) : f;
+}
+
+// CC fork 11/27/2026: GetYPos without the mods (scroll + reverse only), for the keep-on-screen limit in GetXYZPos
+float ArrowEffects::GetYScrollPos(
+    int iCol, float fYOffset, float fYReverseOffsetPixels, bool WithReverse) {
+  float f = fYOffset;
+  if (WithReverse) {
+    float fShift, fScale;
+    ArrowGetReverseShiftAndScale(iCol, fYReverseOffsetPixels, fShift, fScale);
+    f *= fScale;
+    f += fShift;
+  }
+  return f;
 }
 
 float ArrowEffects::GetYOffsetFromYPos(
@@ -1901,6 +1920,20 @@ int GetXPos(lua_State* L) {
   return 1;
 }
 
+// CC fork 11/27/2026: ( PlayerState ps, int iCol, float fYOffset [, float fYReverseOffsetPixels] ) -> x, y, z
+// where the engine actually draws the note, keep-on-screen limit included (GetXPos/GetYPos/GetZPos report the raw
+// mod math). Used by the CCMania++ arrows-on-screen sweep.
+int GetXYZPos(lua_State* L) {
+  PlayerState* ps = Luna<PlayerState>::check(L, 1);
+  ArrowEffects::SetCurrentOptions(&ps->m_PlayerOptions.GetCurrent());
+  RageVector3 v;
+  ArrowEffects::GetXYZPos(ps, IArg(2) - 1, FArg(3), YReverseOffset(L, 4), v);
+  lua_pushnumber(L, v.x);
+  lua_pushnumber(L, v.y);
+  lua_pushnumber(L, v.z);
+  return 3;
+}
+
 // ( PlayerState ps, int iCol, float fYOffset )
 int GetZPos(lua_State* L) {
   PlayerState* ps = Luna<PlayerState>::check(L, 1);
@@ -2047,7 +2080,7 @@ int GetFrameWidthScale(lua_State* L) {
 const luaL_Reg ArrowEffectsTable[] = {
     LIST_METHOD(Update),        LIST_METHOD(GetYOffset),
     LIST_METHOD(GetYPos),       LIST_METHOD(GetYOffsetFromYPos),
-    LIST_METHOD(GetXPos),       LIST_METHOD(GetZPos),
+    LIST_METHOD(GetXPos),       LIST_METHOD(GetZPos),       LIST_METHOD(GetXYZPos),
     LIST_METHOD(GetRotationX),  LIST_METHOD(GetRotationY),
     LIST_METHOD(GetRotationZ),  LIST_METHOD(ReceptorGetRotationZ),
     LIST_METHOD(GetAlpha),      LIST_METHOD(GetGlow),

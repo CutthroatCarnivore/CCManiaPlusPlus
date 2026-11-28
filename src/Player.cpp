@@ -1914,14 +1914,21 @@ Player::PlayerNoteFieldPositioner::PlayerNoteFieldPositioner(
     : player(p) {
   // CC fork: NotITG whole-player mods (x/y/z in pixels, rotationx/y/z in degrees)
   const PlayerOptions& cco = player->m_pPlayerState->m_PlayerOptions.GetCurrent();
-  player->PushPlayerMatrix(
-      x + 100.f * cco.m_fCC[CCMOD_PLAYERX], skew,
-      center_y + 100.f * cco.m_fCC[CCMOD_PLAYERY]);  // mod % = pixels
+  float px = 100.f * cco.m_fCC[CCMOD_PLAYERX];  // mod % = pixels
+  float py = 100.f * cco.m_fCC[CCMOD_PLAYERY];
+  if (!ArrowEffects::CCAllowOffscreen()) {
+    // CC fork 11/27/2026 (Anthony): a modfile can't push the whole field off the screen unless the player
+    // opted in to off-screen arrows. The field's middle stays at least 160 px inside the left/right edges,
+    // and the receptors can't be moved more than 35% of the screen height up or down.
+    const float cx = std::max(160.f, std::min(SCREEN_WIDTH - 160.f, x + px));
+    px = cx - x;
+    py = std::max(-0.35f * SCREEN_HEIGHT, std::min(0.35f * SCREEN_HEIGHT, py));
+  }
+  player->PushPlayerMatrix(x + px, skew, center_y + py);
   // The x/y mods move the playfield itself too, not only its vanishing
   // point (conformance test 19: 200 y drops the receptors 200 px).
-  if (cco.m_fCC[CCMOD_PLAYERX] != 0 || cco.m_fCC[CCMOD_PLAYERY] != 0) {
-    DISPLAY->Translate(100.f * cco.m_fCC[CCMOD_PLAYERX],
-                       100.f * cco.m_fCC[CCMOD_PLAYERY], 0);
+  if (px != 0 || py != 0) {
+    DISPLAY->Translate(px, py, 0);
   }
   float reverse_mult = (reverse ? -1 : 1);
   original_y = player->m_pNoteField->GetY();

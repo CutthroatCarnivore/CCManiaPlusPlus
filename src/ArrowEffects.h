@@ -4,6 +4,8 @@
 #include "PlayerNumber.h"
 #include "RageTypes.h"
 
+#include <algorithm>
+
 class PlayerState;
 class PlayerOptions;
 /** @brief Functions that return properties of arrows based on Style and
@@ -38,15 +40,39 @@ class ArrowEffects {
       const PlayerState* player_state, int col, float y_offset,
       float y_reverse_offset, RageVector3& ret, bool with_reverse = true) {
     ret.x = GetMoveX(col) + GetXPos(player_state, col, y_offset);
-    ret.y =
-        GetMoveY(col) +
-        GetYPos(player_state, col, y_offset, y_reverse_offset, with_reverse);
-    ret.z = GetMoveZ(col) + GetZPos(player_state, col, y_offset);
     const RageVector3 cc = CCPosOffset(player_state, col, y_offset);  // CC fork
+    float mod_y = GetMoveY(col) + cc.y;   // what mods add to y (not the scroll itself)
+    ret.z = GetMoveZ(col) + GetZPos(player_state, col, y_offset);
     ret.x += cc.x;
-    ret.y += cc.y;
     ret.z += cc.z;
+    // CC fork 11/27/2026 (Anthony): no arrow ever drifts so far off the field that you lose track of which
+    // arrow it was. Unless the player opts in (Preferences: CCAllowOffscreenArrows=1, theme option
+    // "Off-Screen Arrows: Allow"), every arrow stays within 2 arrow widths of the field's edge
+    // sideways, within 2.5 arrow heights of its own spot up and down, and within reach in depth.
+    const float y_all =
+        GetYPos(player_state, col, y_offset, y_reverse_offset, with_reverse);
+    if (!CCAllowOffscreen()) {
+      ret.x = std::max(-CC_KEEP_X, std::min(CC_KEEP_X, ret.x));
+      ret.z = std::max(-CC_KEEP_Z, std::min(CC_KEEP_Z, ret.z));
+      // 11/27/2026 (2nd pass): the y limit covers everything mods add on top of the scroll - move/spline/cylinder
+      // AND tipsy, tan tipsy, beat-y, attenuate-y inside GetYPos (the Beta 10 sweep caught a Mods Boot Camp chart
+      // throwing the receptors 13,500 px up through tan tipsy). The scroll itself (and reverse) is never touched,
+      // so notes still come in from off screen the normal way.
+      const float y_scroll = GetYScrollPos(col, y_offset, y_reverse_offset, with_reverse);
+      mod_y += y_all - y_scroll;
+      mod_y = std::max(-CC_KEEP_Y, std::min(CC_KEEP_Y, mod_y));
+      ret.y = y_scroll + mod_y;
+      return;
+    }
+    ret.y = mod_y + y_all;
   }
+  // CC fork 11/27/2026: the plain scroll part of GetYPos (offset with reverse applied, no tipsy/beat-y/etc.)
+  static float GetYScrollPos(int iCol, float fYOffset, float fYReverseOffsetPixels, bool WithReverse);
+  // CC fork 11/27/2026: keep-on-screen limits (pixels, field space; one arrow = 64 px)
+  static constexpr float CC_KEEP_X = 224.f;   // field edges are +-128
+  static constexpr float CC_KEEP_Y = 160.f;
+  static constexpr float CC_KEEP_Z = 320.f;
+  static bool CCAllowOffscreen();
   // CC fork: NotITG position mods (bumpyy/z, cubicx/y/z, drunky).
   // Approximations of NotITG's math; tune against NotITG side by side.
   static RageVector3 CCPosOffset(
